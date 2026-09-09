@@ -1,0 +1,6 @@
+tilawah (1.0.0-1) unstable; urgency=medium
+
+  * Initial release: TUI player, mp3quran streaming + offline downloads,
+    YouTube Top-40 shelf, sleep timer, themes.
+
+ -- Tilawah <tilawah@example.invalid>  Wed, 09 Sep 2026 00:00:00 +0000

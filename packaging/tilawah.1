@@ -1,0 +1,59 @@
+.TH TILAWAH 1 "September 2026" "tilawah 1.0.0" "User Commands"
+.SH NAME
+tilawah \- terminal-native Qur'an audio player
+.SH SYNOPSIS
+.B tilawah
+.RI [COMMAND] [OPTIONS]
+.br
+.B tilawah
+.RI "play -r " NAME " -s " N
+.br
+.B tilawah
+.RI "download -r " NAME " [-s " N " | --all]"
+.br
+.B tilawah
+.RI "setup " URL
+.SH DESCRIPTION
+Tilawah streams and offline-plays Qur'an audio from mp3quran.net (240+
+reciters, Top-15 menu), keeps a personal shelf downloaded from a YouTube
+playlist, and runs entirely in the terminal with an Islamic-geometric ambient
+visual. One binary, no daemon.
+.SH COMMANDS
+.TP
+.B (no command)
+Launch the TUI.
+.TP
+.B play -r NAME -s N
+Play without the TUI.
+.TP
+.B download -r NAME [-s N | --surahs A B | --all]
+Download audio for offline use (resumable, skips cached files).
+.TP
+.B get-playlist URL / setup URL
+Download the personal YouTube shelf (needs yt-dlp); setup also remembers URL.
+.TP
+.B reciters [query] / surahs [query] / favs / history / shelf / resume
+Browse the library, favorites, history and shelf from the shell.
+.TP
+.B shrink-shelf --bitrate 96k
+Re-encode shelf audio to save space (duration-verified, needs ffmpeg).
+.TP
+.B theme NAME / doctor
+Switch theme (night/dawn/minimal); check dependencies and connectivity.
+.SH KEYS (TUI)
+Space play/pause, n/p next/prev, 0 restart, Left/Right seek, Up/Down volume,
+m mute, Tab panels, Enter play, / find, C all reciters, w narration,
+f favorite, d save surah, a save reciter, t sleep timer, g theme,
+v fullscreen, o move box, A animation, ? help, q quit.
+.SH FILES
+.TP
+.I ~/.config/tilawah/config.toml
+Configuration (default reciter, theme, download dir, playlist URL, ...).
+.TP
+.I ~/.local/share/tilawah/tilawah.db
+Catalog cache, history, favorites, positions, shelf (SQLite).
+.TP
+.I ~/Tilawah/
+Downloaded audio (overridable via config).
+.SH "SEE ALSO"
+Project README and DECISIONS.md in /usr/share/doc/tilawah/.

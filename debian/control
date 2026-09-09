@@ -1,0 +1,17 @@
+Source: tilawah
+Section: sound
+Priority: optional
+Maintainer: Tilawah <tilawah@example.invalid>
+Build-Depends: debhelper-compat (= 13), python3, python3-setuptools
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: tilawah
+Architecture: all
+Depends: python3, ${misc:Depends}
+Recommends: mpv, yt-dlp, ffmpeg
+Suggests: python3-pil
+Description: Terminal-native Qur'an audio player
+ Stream and offline-play Qur'an audio from mp3quran.net, keep a personal
+ YouTube Top-40 shelf, sleep timer, ambient Islamic-geometric visuals —
+ all in one terminal binary.
