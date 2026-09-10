@@ -125,3 +125,19 @@ so the keymap below is mine; everything else follows the brief literally.
 23. **Narration scoring**: two moshafs can both be labelled Murattal, so
     preference is now Hafs + completeness, not first-match (Mishary correctly
     defaults to the 114-surah Hafs, not the 6-surah Dorai).
+
+## Round 5 — "really broken" report (2026-09-11)
+
+24. **Verdict first**: reproduced on a fresh profile with real mpv - playback
+    works, `k` raises volume, `j` lowers it. The device symptoms (inverted
+    keys + dead play) match the pre-1.0.4 build exactly, so the prime suspect
+    is an un-upgraded box. Fix: version is now printed on the splash screen
+    AND the header (`Tilawah v1.0.5`), so any report can be tied to a build.
+25. **Real release-process bug found on the way**: v1.0.4 was tagged without
+    bumping code/changelog (app reported 1.0.3). Repaired with retroactive
+    changelog entries; CI now fails any tag whose version disagrees with
+    `tilawah.__version__` and the changelog head.
+26. **First-run honesty**: empty-cache fetch now announces itself on stdout
+    (previously a black screen on slow connections); empty catalog gets its
+    own message and loading screen; the background catalog refresh retries
+    every 60s instead of once, so offline-first launches heal themselves.

@@ -1,3 +1,17 @@
+tilawah (1.0.5-1) unstable; urgency=medium
+
+  * Version on splash/header, first-run fetch notice, catalog retry,
+    correct 1.0.4 version stamp (1.0.4 shipped stamped 1.0.3).
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 11 Sep 2026 00:00:00 +0000
+
+tilawah (1.0.4-1) unstable; urgency=medium
+
+  * Fixed controls (volume direction, WASD), numbered panels, save center
+    (surah/reciter/Juz 30/all), Hafs narration scoring.
+
+ -- Tilawah <tilawah@example.invalid>  Wed, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.0.3-1) unstable; urgency=medium
 
   * CI: auto-publish APT repo to GitHub Pages on release.

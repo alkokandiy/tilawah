@@ -22,6 +22,7 @@ import time
 
 from . import api as api_mod
 from . import art, downloader, themes
+from . import __version__ as APP_VERSION
 from .surahs import SURAHS, by_number
 
 KEYMAP_DOC = [
@@ -113,19 +114,29 @@ class App:
             self.shelf = []
 
     def _bg_refresh(self):
-        """Refresh the catalog quietly after launch so startup is instant."""
-        try:
-            reciters = api_mod.fetch_reciters()
-            if reciters:
-                self.store.save_reciters(reciters)
-                try:
-                    self.store.save_suwar(api_mod.fetch_suwar())
-                except Exception:
-                    pass
-                self.reciters = reciters
-                self.say("reciter list updated")
-        except Exception:
-            pass
+        """Refresh the catalog quietly after launch so startup is instant.
+
+        Retries every minute until it succeeds (fresh offline devices pick
+        the list up by themselves once connected).
+        """
+        while True:
+            try:
+                reciters = api_mod.fetch_reciters()
+                if reciters:
+                    self.store.save_reciters(reciters)
+                    try:
+                        self.store.save_suwar(api_mod.fetch_suwar())
+                    except Exception:
+                        pass
+                    if not self.reciters:
+                        self.say("reciter list loaded - pick one, Enter plays", 6)
+                    else:
+                        self.say("reciter list updated")
+                    self.reciters = reciters
+                    return
+            except Exception:
+                pass
+            time.sleep(60)
 
     def visible_reciters(self):
         top, rest = api_mod.curate(self.reciters)
@@ -200,7 +211,10 @@ class App:
     def play_selection(self):
         r, m, _ = self.current_moshaf()
         if not r or not m:
-            self.say("this reciter has no audio")
+            if not self.visible_reciters():
+                self.say("no reciters yet - connect once so the list can load", 6)
+            else:
+                self.say("this reciter has no audio")
             return
         nums = self.surah_numbers()
         if not nums:
@@ -447,6 +461,11 @@ class App:
             except curses.error:
                 pass
             y += 1
+        try:
+            ver = f"v{APP_VERSION}   -   press any key"
+            stdscr.addstr(y, max(0, (w - len(ver)) // 2), ver[:w - 1], self.C("dim"))
+        except curses.error:
+            pass
         stdscr.refresh()
         stdscr.timeout(2200)
         stdscr.getch()
@@ -819,7 +838,7 @@ class App:
         tabs = "   ".join(f"[{i + 1} {p}]" if i == self.panel else f"{i + 1} {p}"
                           for i, p in enumerate(self.panels))
         try:
-            stdscr.addstr(0, 1, f"Tilawah   {tabs}"[:w - 2], self.C("title"))
+            stdscr.addstr(0, 1, f"Tilawah v{APP_VERSION}   {tabs}"[:w - 2], self.C("title"))
             stdscr.addstr(1, 1, "-" * (w - 2), self.C("border"))
         except curses.error:
             pass
@@ -913,6 +932,12 @@ class App:
         top_n = len(api_mod.curate(self.reciters)[0]) or 20
         r, m, _ = self.current_moshaf(rs)
         nums = self.surah_numbers(rs)
+        if not rs:
+            self._list(stdscr, h, w, "Reciters - still loading...",
+                       ["Connect once and the list appears by itself.",
+                        "Streaming and saving need one online fetch,",
+                        "then everything works offline."], 0)
+            return
         hw = w // 2
         scope = f"Top {top_n}" if not self.show_all else f"all {len(self.reciters)}"
         try:

@@ -22,7 +22,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+      - name: Version consistency (tag == code == changelog)
+        run: |
+          TAG="${{ github.ref_name }}"
+          CODE="$(python3 -c 'import tilawah; print(tilawah.__version__)')"
+          [ "$TAG" = "v$CODE" ] || { echo "tag $TAG != code v$CODE"; exit 1; }
+          head -1 debian/changelog | grep -q "($CODE-1)" || { echo "changelog top != $CODE-1"; exit 1; }
+          echo "version OK: $TAG"
       - name: Install build deps
+        run: sudo apt-get update -q && sudo apt-get install -y -q build-essential debhelper dh-python pybuild-plugin-pyproject devscripts python3-setuptools
         run: sudo apt-get update -q && sudo apt-get install -y -q build-essential debhelper dh-python pybuild-plugin-pyproject devscripts python3-setuptools
       - name: Python sdist/wheel
         run: pip install build && python3 -m build

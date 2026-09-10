@@ -55,6 +55,9 @@ def get_catalog(store, refresh=False):
     cached = store.load_reciters()
     if cached and not refresh:
         return cached, False
+    if not cached:
+        # Fresh device: this blocks before the TUI can draw, so say so.
+        print("first run: fetching the reciter list from mp3quran.net ...")
     try:
         reciters = api.fetch_reciters()
         store.save_reciters(reciters)
