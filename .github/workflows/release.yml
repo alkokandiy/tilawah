@@ -16,6 +16,12 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
+    # Per https://docs.github.com/en/rest/releases/releases: the token creating
+    # the release needs contents:write, plus workflows scope when (as here) the
+    # tagged commit touches .github/workflows/.
+    permissions:
+      contents: write
+      workflows: write
     steps:
       - uses: actions/checkout@v4
       - name: Install build deps
@@ -32,6 +38,20 @@ jobs:
         with: { name: dist, path: "dist/*" }
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: "Tilawah ${{ github.ref_name }}"
+          body: |
+            Terminal-native Qur'an audio player: stream 114 surahs, save offline
+            audio, personal YouTube shelf, sleep timer, TUI with ambient visuals.
+
+            Install: `sudo apt install ./tilawah_*_all.deb`
+            (then `sudo apt install mpv yt-dlp ffmpeg` for audio + YouTube),
+            or `pip install` the attached wheel. Full guide in README.md.
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             dist/*
             tilawah_*.deb
