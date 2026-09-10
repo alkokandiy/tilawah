@@ -27,25 +27,26 @@ from .surahs import SURAHS, by_number
 KEYMAP_DOC = [
     ("Space", "play / pause"), ("n / p", "next / previous track"),
     ("0", "restart track"), ("m", "mute"), ("- / =", "volume"),
-    ("Left / Right", "seek 10s (Now) - switch list (Reciters)"),
-    ("Up / Down", "volume (Now) - move (lists)"),
-    ("Tab", "switch panel"), ("Enter", "play selected"),
-    ("/", "find reciter"), ("C", "Top 20 <-> all reciters"),
-    ("w", "switch narration (moshaf)"), ("z", "shuffle"), ("e", "repeat"),
+    ("Arrows / hjkl / WASD", "move + seek + volume (see footer)"),
+    ("1 2 3 4", "jump to Now / Reciters / Shelf / Queue"),
+    ("Tab", "next panel"), ("Enter", "play selected"),
+    ("Esc", "back to Now Playing"),
+    ("/", "find reciter"), ("C", "Top picks <-> all reciters"),
+    ("w", "switch narration"), ("z", "shuffle"), ("e", "repeat"),
     ("R", "elapsed <-> remaining"), ("A", "animation style"),
     ("f", "favorite this track"), ("F / H", "favorites / history"),
     ("d", "save this surah"), ("a", "save whole reciter"),
-    ("x", "cancel saving"), ("D", "refresh YouTube shelf"),
-    ("t / T", "sleep timer set / cancel"), ("g", "theme"),
-    ("v", "fullscreen"), ("o", "move player box"), ("?", "this help"),
-    ("q", "quit"),
+    ("D", "save center: surah/reciter/Juz 30/all"),
+    ("x", "cancel saving"), ("t / T", "sleep timer set / cancel"),
+    ("g", "theme"), ("v", "fullscreen"), ("o", "move player box"),
+    ("?", "this help"), ("q", "quit"),
 ]
 
 HINTS = {
-    0: "Space play - n next - L/R seek - U/D vol - m mute - t sleep - ? keys",
-    1: "U/D move - L/R switch list - Enter play - / find - d save - C all - ? keys",
-    2: "Enter play - D refresh from YouTube - ? keys",
-    3: "Enter jump to track - z shuffle - e repeat - ? keys",
+    0: "Space play - n next - L/R seek - U/D vol - m mute - D save - ? keys",
+    1: "1-4 panels - move: arrows/hjkl/WASD - Enter play - / find - d save 1 - ? keys",
+    2: "Enter play - D save center - 1-4 panels - ? keys",
+    3: "Enter jump - z shuffle - e repeat - 1-4 panels - ? keys",
 }
 
 
@@ -84,7 +85,7 @@ class App:
         self.q_sel = 0
         self.moshaf_idx = {}  # reciter name -> moshaf index
         self.filter = ""
-        self.mode = "browse"  # browse | search | sleep
+        self.mode = "browse"  # browse | search | sleep | download
         self.buf = ""
         self.msg = status_msg
         self.msg_until = time.time() + 4 if status_msg else 0
@@ -96,6 +97,10 @@ class App:
         self.hist = []
         self.shelf = []
         self.dl = None  # background download job dict
+        self.dl_opts = []
+        self.dl_title = ""
+        self.dl_confirm = False
+        self._dl_pending = []
         self._needs_paint = True
         self.refresh_shelf()
         threading.Thread(target=self._bg_refresh, daemon=True).start()
@@ -220,29 +225,145 @@ class App:
                                   api_mod.audio_url(m["server"], n)) for n in nums]
         self._play_tracks(tracks, nums.index(surah))
 
-    def start_bg_download(self, reciter, moshaf, only=()):
+    def _cached_count(self, items):
+        dd = self.cfg.get("download_dir", "~/Tilawah")
+        n = 0
+        for (reciter, server, s) in items:
+            try:
+                if downloader.already_cached(
+                        downloader._local_name(dd, reciter, s)):
+                    n += 1
+            except Exception:
+                pass
+        return n
+
+    def _dl_enqueue(self, items, label):
+        """Queue (reciter, server, surah) items as a background job.
+
+        Files already saved are skipped exactly once - saving is idempotent,
+        so re-running never re-fetches ("required one time" by design).
+        """
         if self.dl and self.dl.get("running"):
             self.say("already saving - x cancels")
             return
-        nums = [s for s in api_mod.available_surahs(moshaf) if (not only or s in set(only))]
-        job = {"label": reciter["name"], "done": 0, "total": len(nums),
-               "running": True, "cancel": False}
+        items = list(items)
+        if not items:
+            self.say("nothing to save")
+            return
+        have = self._cached_count(items)
+        if have >= len(items):
+            self.say("already saved - nothing to fetch")
+            return
+        job = {"label": label, "done": 0, "total": len(items),
+               "have": have, "running": True, "cancel": False,
+               "cur": "", "frac": 0.0}
         self.dl = job
-        threading.Thread(target=self._dl_worker,
-                         args=(job, reciter, moshaf, nums), daemon=True).start()
-        self.say(f"saving {len(nums)} file(s) in background (x cancels)")
+        threading.Thread(target=self._dl_worker, args=(job, items),
+                         daemon=True).start()
+        self.say(f"saving {len(items) - have} new file(s)"
+                 + (f" ({have} already saved)" if have else "") + " - x cancels")
 
-    def _dl_worker(self, job, reciter, moshaf, nums):
+    def _dl_worker(self, job, items):
         dd = self.cfg.get("download_dir", "~/Tilawah")
-        for s in nums:
+        for (reciter, server, s) in items:
             if job["cancel"]:
                 break
+            dest = downloader._local_name(dd, reciter, s)
+            if downloader.already_cached(dest):
+                job["done"] += 1
+                continue
+            job["cur"] = f"{s:03d}.mp3"
+            job["frac"] = 0.0
+
+            def cb(d, t, job=job):
+                job["frac"] = (d / t) if t else 0.0
+
             try:
-                downloader.download_surah(moshaf["server"], reciter["name"], s, dd)
+                downloader.download_surah(server, reciter, s, dd, progress=cb)
             except Exception:
                 pass
             job["done"] += 1
+            job["frac"] = 0.0
+            job["cur"] = ""
         job["running"] = False
+        if not job["cancel"]:
+            self.say(f"saved {job['label']} - find it offline from now on", 6)
+
+    # -- save center (D) --
+    def _dl_context(self):
+        """(reciter, moshaf, surah_numbers) for the download dialog."""
+        if self.panel == 1 and self.list_view == "reciters":
+            r, m, _ = self.current_moshaf()
+            if r and m:
+                return r, m, self.surah_numbers()
+        t = self.player.current()
+        if t and t.get("reciter"):
+            r = api_mod.find_reciter(self.reciters, t["reciter"])
+            if r and r.get("moshaf"):
+                idx = self.moshaf_idx.get(r["name"], api_mod.preferred_moshaf_index(r))
+                m = r["moshaf"][min(idx, len(r["moshaf"]) - 1)]
+                return r, m, api_mod.available_surahs(m)
+        return None, None, []
+
+    def _dl_open(self):
+        r, m, nums = self._dl_context()
+        if not r or not m:
+            self.say("pick a reciter first (panel 2)")
+            return
+        cur_surahs = []
+        t = self.player.current()
+        if self.panel == 1 and nums:
+            cur_surahs = [nums[min(self.sur_sel, len(nums) - 1)]]
+        elif t and isinstance(t.get("surah"), int):
+            cur_surahs = [t["surah"]]
+        j30 = [n for n in nums if n in api_mod.JUZ30]
+        top, _ = api_mod.curate(self.reciters)
+        all_n = sum(len(api_mod.available_surahs(
+            rr["moshaf"][api_mod.preferred_moshaf_index(rr)]))
+            for rr in top if rr.get("moshaf"))
+        self.dl_opts = [
+            ("1", f"this surah ({cur_surahs[0]:03d})" if cur_surahs else "this surah",
+             [(r["name"], m["server"], s) for s in cur_surahs]),
+            ("2", f"whole {r['name']} ({len(nums)} surahs)",
+             [(r["name"], m["server"], s) for s in nums]),
+            ("3", f"Juz 30 of {r['name']} ({len(j30)} surahs)",
+             [(r["name"], m["server"], s) for s in j30]),
+            ("4", f"ALL top picks ({all_n} files - big!)", None),
+        ]
+        self.dl_title = r["name"]
+        self.dl_confirm = False
+        self.mode = "download"
+
+    def _dl_all_items(self):
+        top, _ = api_mod.curate(self.reciters)
+        items = []
+        for rr in top:
+            if not rr.get("moshaf"):
+                continue
+            mm = rr["moshaf"][api_mod.preferred_moshaf_index(rr)]
+            items += [(rr["name"], mm["server"], s)
+                      for s in api_mod.available_surahs(mm)]
+        return items
+
+    def _dl_choose(self, key):
+        if key == "4":
+            if not self.dl_confirm:
+                items = self._dl_all_items()
+                self.dl_confirm = True
+                self._dl_pending = items
+                self.say(f"{len(items)} files - press 4 again to start, Esc backs out", 6)
+                return
+            items = self._dl_pending
+            self.mode = "browse"
+            self.dl_confirm = False
+            self._dl_enqueue(items, "all top picks")
+            return
+        self.dl_confirm = False
+        for k, _label, items in self.dl_opts:
+            if k == key and items:
+                self.mode = "browse"
+                self._dl_enqueue(items, _label)
+                return
 
     # ---------------------------------------------------------- curses setup
     def run(self, stdscr):
@@ -375,6 +496,18 @@ class App:
             elif 48 <= ch <= 57:
                 self.buf += chr(ch)
             return None
+        if self.mode == "download":
+            if ch == 27:
+                self.mode = "browse"
+                self.dl_confirm = False
+            elif ch in (ord("1"), ord("2"), ord("3"), ord("4")):
+                self._dl_choose(chr(ch))
+            elif ch == ord("x"):
+                if self.dl and self.dl.get("running"):
+                    self.dl["cancel"] = True
+                    self.say("saving cancelled")
+                self.mode = "browse"
+            return None
         # global keys
         if ch == ord("q"):
             if self.show_help or self.mode != "browse" or self.filter:
@@ -383,8 +516,15 @@ class App:
                 return None
             return "quit"
         if ch == 27:
-            self.show_help = False
-            self.list_view = "reciters"
+            if self.show_help or self.mode != "browse":
+                self.show_help = False
+                self.mode = "browse"
+            elif self.filter:
+                self.filter = ""
+            elif self.list_view != "reciters":
+                self.list_view = "reciters"
+            else:
+                self.panel = 0  # Esc always finds the way back to Now Playing
             return None
         if ch == ord("?"):
             self.show_help = not self.show_help
@@ -415,7 +555,7 @@ class App:
             err = self.player.pause_toggle()
             self.say(err or ("paused" if self.player.paused else "playing"))
             return None
-        if ch == ord("s"):
+        if ch == ord("s") and (self.panel == 0 or self.fullscreen):
             self.player.stop()
             self.say("stopped")
             return None
@@ -490,7 +630,7 @@ class App:
             self.rec_sel = 0
             self.say("all reciters" if self.show_all else "Top 20 reciters")
             return None
-        if ch == ord("w"):
+        if ch == ord("w") and self.panel == 1:
             r, m, idx = self.current_moshaf()
             if r and len(r.get("moshaf", [])) > 1:
                 self.moshaf_idx[r["name"]] = (idx + 1) % len(r["moshaf"])
@@ -499,19 +639,23 @@ class App:
             else:
                 self.say("only one narration for this reciter")
             return None
-        if ch == ord("d"):
-            r, m, _ = self.current_moshaf()
-            if r and m and self.panel == 1 and self.list_view == "reciters":
-                nums = self.surah_numbers()
-                s = nums[min(self.sur_sel, len(nums) - 1)]
-                self.start_bg_download(r, m, only=(s,))
-            else:
-                self.say("go to Reciters and pick a surah first")
-            return None
-        if ch == ord("a"):
+        if ch == ord("d") and self.panel == 1 and self.list_view == "reciters":
             r, m, _ = self.current_moshaf()
             if r and m:
-                self.start_bg_download(r, m)
+                nums = self.surah_numbers()
+                s = nums[min(self.sur_sel, len(nums) - 1)]
+                self._dl_enqueue([(r["name"], m["server"], s)],
+                                 f"{r['name']} surah {s:03d}")
+            else:
+                self.say("this reciter has no audio")
+            return None
+        if ch == ord("a") and self.panel in (0, 1):
+            r, m, nums = self._dl_context()
+            if r and m:
+                self._dl_enqueue([(r["name"], m["server"], s) for s in nums],
+                                 f"whole {r['name']}")
+            else:
+                self.say("pick a reciter first (panel 2)")
             return None
         if ch == ord("x"):
             if self.dl and self.dl.get("running"):
@@ -519,14 +663,23 @@ class App:
                 self.say("saving cancelled")
             return None
         if ch == ord("D"):
-            self.say("use: tilawah get-playlist <YouTube URL>  (needs yt-dlp)")
+            self._dl_open()
             return None
-        # arrows / vim motion - meaning depends on panel
-        if ch in (curses.KEY_LEFT, curses.KEY_RIGHT):
-            return self._lateral(ch == curses.KEY_RIGHT)
-        if ch in (curses.KEY_UP, curses.KEY_DOWN, ord("j"), ord("k")):
-            d = 1 if ch in (curses.KEY_DOWN, ord("j")) else -1
-            return self._vertical(d)
+        if ch in (ord("1"), ord("2"), ord("3"), ord("4")):
+            self.panel = ch - ord("1")
+            self.show_help = False
+            return None
+        # movement: arrows, vim hjkl and WASD mirror each other.
+        # Up/k/w = up (or louder), Down/j/s = down (or quieter) in lists;
+        # 'd' saves in Reciters (handled above), 's' stops in Now/fullscreen.
+        if ch in (curses.KEY_LEFT, ord("h"), ord("a")):
+            return self._move_h(-1)
+        if ch in (curses.KEY_RIGHT, ord("l"), ord("d")):
+            return self._move_h(+1)
+        if ch in (curses.KEY_UP, ord("k"), ord("w")):
+            return self._move_v(-1)
+        if ch in (curses.KEY_DOWN, ord("j"), ord("s")):
+            return self._move_v(+1)
         if ch in (10, 13):
             return self._enter()
         return None
@@ -536,33 +689,36 @@ class App:
         self.say(f"sleep in {mins} min - fades out gently (T cancels)")
         self.mode = "browse"
 
-    def _lateral(self, right):
-        d = 1 if right else -1
-        if self.panel == 0 and not self.fullscreen:
-            self.player.seek(10 * d)
+    def _move_h(self, dx):
+        """Horizontal: seek in Now/fullscreen, switch list column in Reciters."""
+        if self.fullscreen or self.panel == 0:
+            self.player.seek(10 * dx)
         elif self.panel == 1 and self.list_view == "reciters":
-            self.col = max(0, min(1, self.col + d))
+            self.col = max(0, min(1, self.col + dx))
         return None
 
-    def _vertical(self, d):
-        if self.panel == 0 and not self.fullscreen:
-            self.player.set_volume(self.player.volume + 5 * d)
+    def _move_v(self, dy):
+        """Vertical (+1 = down, -1 = up): volume in Now/fullscreen, cursor in lists.
+
+        Up (k/w/Up) is louder, Down (j/s/Down) is quieter - the old build had
+        this backwards.
+        """
+        if self.fullscreen or self.panel == 0:
+            self.player.set_volume(self.player.volume - 5 * dy)
             self.say(f"volume {self.player.volume}")
-        elif self.fullscreen:
-            pass
         elif self.panel == 1:
             if self.list_view == "reciters":
                 if self.col == 0:
-                    self.rec_sel = max(0, self.rec_sel + d)
+                    self.rec_sel = max(0, self.rec_sel + dy)
                     self.sur_sel = 0
                 else:
-                    self.sur_sel = max(0, self.sur_sel + d)
+                    self.sur_sel = max(0, self.sur_sel + dy)
             else:
-                self.sur_sel = max(0, self.sur_sel + d)
+                self.sur_sel = max(0, self.sur_sel + dy)
         elif self.panel == 2:
-            self.shelf_sel = max(0, self.shelf_sel + d)
+            self.shelf_sel = max(0, self.shelf_sel + dy)
         elif self.panel == 3:
-            self.q_sel = max(0, self.q_sel + d)
+            self.q_sel = max(0, self.q_sel + dy)
         return None
 
     def _enter(self):
@@ -583,6 +739,10 @@ class App:
                                     "_file": t["filepath"].split("/")[-1]}], 0)
             err = self.player.play()
             self.say(err or f"playing {t['title']}")
+        elif self.panel == 0 and not self.player.queue:
+            self.panel = 1
+            self.say("pick a reciter, Enter plays", 6)
+            return None
         elif self.panel == 0 and not self.player.playing and self.player.queue:
             self.player.play()
         return None
@@ -612,8 +772,10 @@ class App:
             parts.append(self.msg)
         if self.dl and self.dl.get("running"):
             d = self.dl
-            pct = 100 * d["done"] // max(1, d["total"])
-            parts.append(f"saving {d['label']}: {d['done']}/{d['total']} ({pct}%) - x cancels")
+            fpct = int(100 * d.get("frac", 0))
+            parts.append(f"saving {d['label']}: {d['done']}/{d['total']}"
+                         + (f" - {d['cur']} {fpct}%" if d.get("cur") else "")
+                         + " - x cancels")
         left = self.player.sleep_left()
         if left > 0:
             m, s = int(left // 60), int(left % 60)
@@ -654,7 +816,7 @@ class App:
             pass
 
     def _paint_normal(self, stdscr, h, w, t):
-        tabs = "   ".join(f"[{p}]" if i == self.panel else p
+        tabs = "   ".join(f"[{i + 1} {p}]" if i == self.panel else f"{i + 1} {p}"
                           for i, p in enumerate(self.panels))
         try:
             stdscr.addstr(0, 1, f"Tilawah   {tabs}"[:w - 2], self.C("title"))
@@ -671,6 +833,8 @@ class App:
             self._queue(stdscr, h, w)
         if self.show_help:
             self._help(stdscr, h, w)
+        if self.mode == "download":
+            self._download_box(stdscr, h, w)
         if self.mode == "search":
             self._prompt(stdscr, h, w, "find reciter: ", self.filter)
         elif self.mode == "sleep":
@@ -822,6 +986,34 @@ class App:
                 stdscr.addstr(y + 1 + i, x,
                               "|" + f" {k:22s} {v}".ljust(bw - 2)[:bw - 2] + "|",
                               self.C("text"))
+            stdscr.addstr(y + bh - 1, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
+        except curses.error:
+            pass
+
+    def _download_box(self, stdscr, h, w):
+        rows = [f"Save for offline - {self.dl_title}"]
+        for k, label, items in self.dl_opts:
+            if items:
+                have = self._cached_count(items)
+                rows.append(f"  {k}  {label}   ({have}/{len(items)} saved)")
+            else:
+                rows.append(f"  {k}  {label}")
+        if self.dl and self.dl.get("running"):
+            d = self.dl
+            rows.append("")
+            rows.append(f"  working {d['done']}/{d['total']}"
+                        + (f" - {d['cur']}" if d.get("cur") else ""))
+            rows.append("  " + progress_bar(d["done"] / max(1, d["total"]), 30))
+        rows += ["", "  1-4 choose - x cancel - Esc close"]
+        bw = min(w - 4, max([len(r) for r in rows]) + 6)
+        bh = min(h - 4, len(rows) + 2)
+        y, x = max(1, (h - bh) // 2), max(0, (w - bw) // 2)
+        try:
+            stdscr.addstr(y, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
+            for i, r in enumerate(rows[:bh - 2]):
+                stdscr.addstr(y + 1 + i, x,
+                              "|" + f" {r}".ljust(bw - 2)[:bw - 2] + "|",
+                              self.C("highlight") if i == 0 else self.C("text"))
             stdscr.addstr(y + bh - 1, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
         except curses.error:
             pass

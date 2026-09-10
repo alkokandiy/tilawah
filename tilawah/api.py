@@ -128,9 +128,31 @@ def curate(reciters):
 
 
 def preferred_moshaf_index(reciter):
-    """Prefer a Murattal narration when a reciter has several moshafs."""
+    """Pick the best narration: Hafs Murattal wins, then fuller lists.
+
+    Needed because some reciters have several moshafs all labelled Murattal
+    (e.g. Mishary Alafasi: full Hafs v. 6-surah Dorai) and API order is not
+    stable across refreshes.
+    """
     ms = reciter.get("moshaf", [])
-    for i, m in enumerate(ms):
-        if "murattal" in str(m.get("name", "")).lower():
-            return i
-    return 0
+    if not ms:
+        return 0
+
+    def score(m):
+        name = str(m.get("name", "")).lower()
+        s = 0.0
+        if "murattal" in name:
+            s += 10
+        if "hafs" in name:
+            s += 10
+        try:
+            s += len(available_surahs(m)) / 114.0
+        except Exception:
+            pass
+        return s
+
+    return max(range(len(ms)), key=lambda i: score(ms[i]))
+
+
+# Juz 30 (Juz Amma): surahs 78 (An-Naba) .. 114 (An-Nas).
+JUZ30 = list(range(78, 115))

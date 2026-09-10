@@ -40,6 +40,11 @@ class ApiShapeTest(unittest.TestCase):
         self.assertEqual([r["name"] for r in rest], ["Some Obscure Reader"])
         self.assertEqual(api.preferred_moshaf_index(
             {"moshaf": [{"name": "A"}, {"name": "Hafs - Murattal"}]}), 1)
+        self.assertEqual(api.preferred_moshaf_index(
+            {"moshaf": [{"name": "Rewayat AlDorai - Murattal",
+                         "surah_list": "12,14,25,87,97,99"},
+                        {"name": "Rewayat Hafs A'n Assem - Murattal",
+                         "surah_list": ",".join(str(i) for i in range(1, 115))}]}), 1)
 
     def test_live_reciters_shape(self):
         try:
@@ -232,6 +237,77 @@ class TuiRenderTest(unittest.TestCase):
                 app.panel = panel
                 app.fullscreen = fs
                 app._paint(Stub())
+        store.close()
+
+
+class ControlTest(unittest.TestCase):
+    def _app(self, reciters=()):
+        import tempfile
+        from tilawah.tui import App
+        d = tempfile.mkdtemp()
+        store = Store(os.path.join(d, "t.db"))
+        cfg = dict(config.DEFAULTS)
+        p = Player(store=None, backend=DummyBackend())
+        p.volume = 80
+        app = App(store, dict(cfg), p, list(reciters), d)
+        app._store_dir = d
+        return app
+
+    def test_volume_direction_fixed(self):
+        import curses
+        app = self._app()
+        app.panel = 0
+        app._key(curses.KEY_UP)
+        self.assertEqual(app.player.volume, 85)
+        app._key(ord("k"))
+        self.assertEqual(app.player.volume, 90)
+        app._key(curses.KEY_DOWN)
+        self.assertEqual(app.player.volume, 85)
+        app._key(ord("j"))
+        self.assertEqual(app.player.volume, 80)
+        app.store.close()
+
+    def test_wasd_moves_lists(self):
+        import curses
+        app = self._app()
+        app.panel = 3
+        app.player.set_queue([
+            {"reciter": "R", "moshaf": "M", "surah": n, "url": f"https://x/{n:03d}.mp3",
+             "duration": 60} for n in (1, 2, 3)])
+        app._key(ord("s"))
+        self.assertEqual(app.q_sel, 1)
+        app._key(ord("w"))
+        self.assertEqual(app.q_sel, 0)
+        app._key(curses.KEY_DOWN)
+        self.assertEqual(app.q_sel, 1)
+        app.store.close()
+
+    def test_panel_digits_and_esc(self):
+        app = self._app()
+        app._key(ord("3"))
+        self.assertEqual(app.panel, 2)
+        app._key(27)
+        self.assertEqual(app.panel, 0)
+        app.store.close()
+
+    def test_juz30_range(self):
+        from tilawah import api
+        self.assertEqual(len(api.JUZ30), 37)
+        self.assertEqual(api.JUZ30[0], 78)
+        self.assertEqual(api.JUZ30[-1], 114)
+
+    def test_save_dialog_options(self):
+        app = self._app([{"id": 1, "name": "Test Reciter", "letter": "T",
+                          "moshaf": [{"id": 1, "name": "M", "server": "https://x/",
+                                      "surah_total": 3, "surah_list": "78,79,114",
+                                      "rewaya_id": 1}]}])
+        app.panel = 1
+        app._dl_open()
+        self.assertEqual(app.mode, "download")
+        labels = [label for _k, label, _it in app.dl_opts]
+        self.assertTrue(any("Juz 30" in lb and "(3 surahs)" in lb for lb in labels))
+        self.assertTrue(any(lb.startswith("whole Test Reciter") for lb in labels))
+        app.store.close()
 
 
 if __name__ == "__main__":

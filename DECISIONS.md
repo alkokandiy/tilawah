@@ -107,3 +107,21 @@ so the keymap below is mine; everything else follows the brief literally.
     is set). Host it on any static server/GitHub Pages; clients add one
     sources line. CI (`.github/workflows/release.yml`) runs tests on every
     `v*` tag and attaches sdist/wheel/.deb to the GitHub release.
+
+## Round 4 — controls & save center (on-device bug reports)
+
+20. **Volume was inverted** (Down/j raised it): movement now takes signed
+    up/down and Up/k/w is louder everywhere, Down/j/s quieter. Arrows, hjkl
+    and WASD mirror each other; letter-actions keep their meaning only where
+    the footer shows it (`d` saves in Reciters, `s` stops in Now) - `w`/`a`
+    were scoped to panels where narration-switch/save apply so they never
+    swallow movement.
+21. **Numbered panels (1-4) + Esc-to-Now**: Tab-only navigation confused new
+    users; header shows `1 Now Playing  2 Reciters  3 My Shelf  4 Queue`.
+22. **Save center (D)**: one dialog for this surah / whole reciter / Juz 30
+    (78-114) / all top picks (two-step confirm), each option showing
+    saved/total counts; saving is idempotent (cached files skipped, "already
+    saved" when nothing to do); live per-file progress in dialog + status.
+23. **Narration scoring**: two moshafs can both be labelled Murattal, so
+    preference is now Hafs + completeness, not first-match (Mishary correctly
+    defaults to the 114-surah Hafs, not the 6-surah Dorai).

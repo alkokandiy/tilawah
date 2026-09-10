@@ -42,9 +42,11 @@ tilawah theme dawn  |  tilawah doctor
 tilawah tui --offline --calm     # offline + low-motion (slow SSH)
 ```
 
-In the TUI press `?` for all keys. The short version: `Tab` panels,
-`Enter` plays, `/` finds a reciter, `Space` pauses, `v` fullscreen,
-`t` sleep timer, `q` quits.
+In the TUI press `?` for all keys. The short version: `1-4` jump between
+panels, `Enter` plays, `/` finds a reciter, `Space` pauses, `D` opens the
+save center (one surah / whole reciter / Juz 30 / all), `v` fullscreen,
+`t` sleep timer, `Esc` always walks back to Now Playing, `q` quits.
+Movement is arrows, vim `hjkl` or `WASD` - your choice.
 
 ## Config & data (XDG)
 
