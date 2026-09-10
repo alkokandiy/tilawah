@@ -17,11 +17,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     # Per https://docs.github.com/en/rest/releases/releases: the token creating
-    # the release needs contents:write, plus workflows scope when (as here) the
-    # tagged commit touches .github/workflows/.
+    # the release needs contents:write.
     permissions:
       contents: write
-      workflows: write
     steps:
       - uses: actions/checkout@v4
       - name: Install build deps
