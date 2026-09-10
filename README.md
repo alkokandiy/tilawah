@@ -9,8 +9,8 @@ work; `mpv` / `yt-dlp` / `ffmpeg` plug in when present.
 ## Install
 
 ```bash
-# 1) From this repo's APT server (easiest: updates included)
-echo "deb [trusted=yes] https://YOUR-HOST/tilawah-apt/ ./" \
+# 1) From the project's APT server (easiest: updates included)
+echo "deb [trusted=yes] https://alkokandiy.github.io/tilawah/ ./" \
   | sudo tee /etc/apt/sources.list.d/tilawah.list
 sudo apt update && sudo apt install tilawah
 

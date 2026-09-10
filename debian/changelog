@@ -1,3 +1,9 @@
+tilawah (1.0.3-1) unstable; urgency=medium
+
+  * CI: auto-publish APT repo to GitHub Pages on release.
+
+ -- Tilawah <tilawah@example.invalid>  Wed, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.0.2-1) unstable; urgency=medium
 
   * CI: drop redundant artifact upload (last Node 20 warning).

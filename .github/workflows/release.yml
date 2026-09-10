@@ -51,3 +51,40 @@ jobs:
             --notes-file release-notes.md --latest
           gh release upload "${{ github.ref_name }}" \
             dist/* tilawah_*.deb apt-repo/Packages.gz --clobber
+
+  apt-pages:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      # Pure git + dpkg tools: publishes apt-repo/ to the gh-pages branch so
+      # `sudo apt install tilawah` works straight from GitHub Pages.
+      - name: Publish APT repo to GitHub Pages
+        run: |
+          set -eu
+          sh packaging/publish-apt.sh
+          mkdir -p /tmp/aptpub
+          cp apt-repo/tilawah_*.deb apt-repo/Packages apt-repo/Packages.gz \
+             apt-repo/Release /tmp/aptpub/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan gh-pages-pub
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          git clean -fdx >/dev/null
+          cp /tmp/aptpub/* .
+          cat > README.md <<'EOF'
+          # Tilawah APT repository
+          served via GitHub Pages from this branch.
+
+          ```bash
+          echo "deb [trusted=yes] https://alkokandiy.github.io/tilawah/ ./" \
+            | sudo tee /etc/apt/sources.list.d/tilawah.list
+          sudo apt update && sudo apt install tilawah
+          ```
+          EOF
+          git add -A
+          git commit -qm "APT repo for ${{ github.ref_name }}"
+          git push --force origin gh-pages-pub:gh-pages
