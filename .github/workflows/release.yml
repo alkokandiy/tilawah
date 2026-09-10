@@ -28,6 +28,25 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+      - name: Validate workflow YAML (strict, duplicate keys fail)
+        run: |
+          pip install -q pyyaml
+          python3 - <<'EOF'
+          import yaml
+          class Strict(yaml.SafeLoader): pass
+          def nodup(loader, node, deep=False):
+              mapping = {}
+              for k, v in node.value:
+                  key = loader.construct_object(k, deep=True)
+                  if key in mapping:
+                      raise ValueError(f"duplicate key: {key}")
+                  mapping[key] = loader.construct_object(v, deep=True)
+              return mapping
+          Strict.add_constructor(
+              yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, nodup)
+          yaml.load(open('.github/workflows/release.yml'), Loader=Strict)
+          print('workflow YAML OK')
+          EOF
       - name: Version consistency (tag == code == changelog)
         run: |
           TAG="${{ github.ref_name }}"
@@ -36,7 +55,6 @@ jobs:
           head -1 debian/changelog | grep -q "($CODE-1)" || { echo "changelog top != $CODE-1"; exit 1; }
           echo "version OK: $TAG"
       - name: Install build deps
-        run: sudo apt-get update -q && sudo apt-get install -y -q build-essential debhelper dh-python pybuild-plugin-pyproject devscripts python3-setuptools
         run: sudo apt-get update -q && sudo apt-get install -y -q build-essential debhelper dh-python pybuild-plugin-pyproject devscripts python3-setuptools
       - name: Python sdist/wheel
         run: pip install build && python3 -m build
