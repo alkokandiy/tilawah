@@ -1,3 +1,9 @@
+tilawah (1.0.6-1) unstable; urgency=medium
+
+  * CI: deploy job installs its own tools (unfrozen APT repo fix).
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 11 Sep 2026 00:00:00 +0000
+
 tilawah (1.0.5-1) unstable; urgency=medium
 
   * Version on splash/header, first-run fetch notice, catalog retry,

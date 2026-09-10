@@ -68,6 +68,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
+      - name: Install deploy deps
+        run: sudo apt-get update -q && sudo apt-get install -y -q dpkg-dev gzip git
       # Pure git + dpkg tools: publishes apt-repo/ to the gh-pages branch so
       # `sudo apt install tilawah` works straight from GitHub Pages.
       - name: Publish APT repo to GitHub Pages
