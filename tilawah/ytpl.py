@@ -46,20 +46,30 @@ def list_entries(playlist_url, timeout=120):
     return [l.strip() for l in (proc.stdout or "").splitlines() if l.strip()]
 
 
+def _build_cmd(url, dest, max_items, single):
+    if single:
+        outtmpl = str(dest / "%(title).80s.%(ext)s")
+        scope = ["--no-playlist"]
+    else:
+        outtmpl = str(dest / "%(playlist_index)02d - %(title).80s.%(ext)s")
+        scope = ["--yes-playlist"]
+    return (["yt-dlp"] + scope + ["--newline", "--no-colors",
+            "--max-downloads", str(1 if single else max_items),
+            "-f", "bestaudio/best",
+            "--no-post-overwrites", "--continue",
+            "-o", outtmpl,
+            "--print", "after_move:%(title)s ||| %(filepath)s",
+            url])
+
+
 def ingest(playlist_url, download_dir, store=None, progress=None, max_items=40,
-           file_progress=None, stop=None):
+           file_progress=None, stop=None, single=False):
     ok, hint = deps.yt_dlp()
     if not ok:
         raise PlaylistError(hint)
     dest = Path(str(download_dir)).expanduser() / "Playlist"
     dest.mkdir(parents=True, exist_ok=True)
-    cmd = ["yt-dlp", "--yes-playlist", "--newline", "--no-colors",
-           "--max-downloads", str(max_items),
-           "-f", "bestaudio/best",
-           "--no-post-overwrites", "--continue",
-           "-o", str(dest / "%(playlist_index)02d - %(title).80s.%(ext)s"),
-           "--print", "after_move:%(title)s ||| %(filepath)s",
-           playlist_url]
+    cmd = _build_cmd(playlist_url, dest, max_items, single)
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True)

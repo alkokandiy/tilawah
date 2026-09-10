@@ -37,6 +37,7 @@ tilawah download -r "Mishary Alafasi" -s 36     # one surah
 tilawah download -r NAME --surahs 36 37 38      # several
 tilawah download -r NAME --all                  # whole reciter
 tilawah reciters [query]  |  tilawah surahs [query]   # library (offline OK)
+tilawah add-link <YouTube-URL>                # paste a link, audio lands on shelf
 tilawah favs | tilawah history | tilawah shelf | tilawah resume
 tilawah shrink-shelf --bitrate 96k              # save disk (duration-verified)
 tilawah theme dawn  |  tilawah doctor

@@ -440,6 +440,32 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(ytpl._dl_pct("[download] 100%"), 100.0)
         self.assertIsNone(ytpl._dl_pct("[info] hello"))
 
+    def test_single_vs_playlist_cmd(self):
+        from pathlib import Path
+        from tilawah import ytpl
+        one = ytpl._build_cmd("https://youtu.be/abc", Path("/tmp/x"), 40, True)
+        many = ytpl._build_cmd("https://youtube.com/playlist?list=PLx", Path("/tmp/x"), 40, False)
+        self.assertIn("--no-playlist", one)
+        self.assertIn("--yes-playlist", many)
+        self.assertIn("1", one[one.index("--max-downloads") + 1])
+        self.assertNotIn("playlist_index", one[one.index("-o") + 1])
+        self.assertIn("playlist_index", many[many.index("-o") + 1])
+
+    def test_url_prompt_mode(self):
+        app = self._app()
+        app._key(ord("u"))
+        self.assertEqual(app.mode, "url")
+        app._key(ord("h"))
+        app._key(ord("i"))
+        self.assertEqual(app.buf, "hi")
+        app._key(27)
+        self.assertEqual(app.mode, "browse")
+        app._key(ord("u"))
+        app._key(10)  # Enter on empty URL just closes, no threads
+        self.assertEqual(app.mode, "browse")
+        self.assertIsNone(app.shelf_job)
+        app.store.close()
+
 
 if __name__ == "__main__":
     unittest.main()

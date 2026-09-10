@@ -40,6 +40,7 @@ KEYMAP_DOC = [
     ("d", "save this surah"), ("a", "save whole reciter"),
     ("D", "save center: surah/reciter/Juz 30/all"),
     ("Y", "fetch shelf tracks to this device"),
+    ("u", "paste a link, fetch its audio to the shelf"),
     ("x", "cancel saving"), ("t / T", "sleep timer set / cancel"),
     ("g", "theme"), ("v", "fullscreen"), ("o", "move player box"),
     ("?", "this help"), ("q", "quit"),
@@ -89,7 +90,7 @@ class App:
         self.q_sel = 0
         self.moshaf_idx = {}  # reciter name -> moshaf index
         self.filter = ""
-        self.mode = "browse"  # browse | search | sleep | download
+        self.mode = "browse"  # browse | search | sleep | download | fetch | url
         self.buf = ""
         self.msg = status_msg
         self.msg_until = time.time() + 4 if status_msg else 0
@@ -312,6 +313,49 @@ class App:
         self.shelf_job = job
         self.say("fetching your shelf tracks - x stops", 5)
         threading.Thread(target=self._shelf_worker, args=(job,), daemon=True).start()
+
+    def _add_link(self, url):
+        """Paste-a-link: fetch one audio into the shelf folder."""
+        url = (url or "").strip()
+        self.mode = "browse"
+        if not url:
+            return
+        if self.shelf_job and self.shelf_job.get("running"):
+            self.say("already fetching - x stops it")
+            return
+        ok, hint = deps_mod.yt_dlp()
+        if not ok:
+            self.say(hint, 6)
+            return
+        job = {"running": True, "stop": threading.Event(), "done": 0,
+               "total": 1, "pct": 0.0, "title": url, "error": ""}
+        self.shelf_job = job
+        self.say("fetching link audio - x stops", 5)
+        threading.Thread(target=self._add_link_worker, args=(job, url),
+                         daemon=True).start()
+
+    def _add_link_worker(self, job, url):
+        from . import ytpl
+
+        def prog(n, title):
+            job["done"] = n
+            job["title"] = title
+
+        def fprog(pct, _label):
+            job["pct"] = pct
+
+        try:
+            ytpl.ingest(url, self.cfg.get("download_dir", "~/Tilawah"),
+                        store=self.store, max_items=1, single=True,
+                        progress=prog, file_progress=fprog, stop=job["stop"])
+        except Exception as e:
+            job["error"] = str(e) or "network error"
+        finally:
+            job["running"] = False
+            try:
+                self.refresh_shelf()
+            except Exception:
+                pass
 
     def _shelf_worker(self, job):
         from . import ytpl
@@ -723,6 +767,16 @@ class App:
                 self.mode = "browse"
                 self.say("fetch cancelled")
             return None
+        if self.mode == "url":
+            if ch == 27:
+                self.mode = "browse"
+            elif ch in (10, 13):
+                self._add_link(self.buf)
+            elif ch in (curses.KEY_BACKSPACE, 127, 8):
+                self.buf = self.buf[:-1]
+            elif 32 <= ch < 127:
+                self.buf += chr(ch)
+            return None
         # global keys
         if ch == ord("q"):
             if self.show_help or self.mode != "browse" or self.filter:
@@ -892,6 +946,10 @@ class App:
             return None
         if ch == ord("Y"):
             self._shelf_fetch()
+            return None
+        if ch == ord("u"):
+            self.mode = "url"
+            self.buf = ""
             return None
         if ch in (ord("1"), ord("2"), ord("3"), ord("4")):
             self.panel = ch - ord("1")
@@ -1101,6 +1159,8 @@ class App:
             self._prompt(stdscr, h, w, "find reciter: ", self.filter)
         elif self.mode == "sleep":
             self._prompt(stdscr, h, w, "sleep? 1=15m 2=30m 3=60m or minutes: ", self.buf)
+        elif self.mode == "url":
+            self._prompt(stdscr, h, w, "paste link, Enter fetches its audio: ", self.buf)
 
     def _now_box(self, stdscr, h, w, t):
         cur = self.player.current()
@@ -1221,7 +1281,8 @@ class App:
     def _shelf(self, stdscr, h, w):
         self.refresh_shelf()
         rows = [t["title"] for t in self.shelf] or \
-            ["Your shelf is empty.", "Run: tilawah setup   (saves your 40 YouTube tracks here)"]
+            ["Your shelf is empty.",
+             "Press Y to fetch your tracks, or u to paste one link."]
         self._list(stdscr, h, w,
                    f"My Shelf - {len(self.shelf)} saved ({self._shelf_size() / 1e6:.0f}MB)",
                    rows, self.shelf_sel)

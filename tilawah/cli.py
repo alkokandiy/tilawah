@@ -283,6 +283,24 @@ def cmd_get_playlist(args):
     return 0
 
 
+def cmd_add_link(args):
+    """Paste one link -> audio extracted -> shelf folder."""
+    cfg, store = ctx()
+    from . import ytpl
+    try:
+        tracks = ytpl.ingest(args.url, cfg["download_dir"], store=store,
+                             max_items=1, single=True,
+                             progress=lambda n, t: print(f"  saved: {t}"))
+    except ytpl.PlaylistError as e:
+        print(e)
+        return 1
+    if not tracks:
+        print("nothing fetched - check the link")
+        return 1
+    print(f"on your shelf now (`tilawah shelf`, TUI panel 3)")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="tilawah", description="terminal-native Qur'an audio player")
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -322,6 +340,10 @@ def main(argv=None):
     g.add_argument("url", nargs="?")
     g.add_argument("--max", type=int, default=40)
     g.set_defaults(fn=cmd_get_playlist)
+
+    al = sub.add_parser("add-link", help="fetch one link's audio into the shelf")
+    al.add_argument("url")
+    al.set_defaults(fn=cmd_add_link)
 
     st = sub.add_parser("setup", help="first-run setup: save YouTube URL + pre-download shelf")
     st.add_argument("url", nargs="?", help="YouTube playlist URL (saved to config)")
