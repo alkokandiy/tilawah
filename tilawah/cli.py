@@ -171,13 +171,30 @@ def cmd_play(args):
     m = r["moshaf"][min(args.moshaf if args.moshaf is not None else int(cfg.get("default_moshaf", 0)), len(r["moshaf"]) - 1)]
     nums = api.available_surahs(m)
     start = args.surah if args.surah in nums else nums[0]
+    mode = "stream" if args.stream else ("download" if args.download
+                                         else ("stream" if str(cfg.get("play_mode", "download")).lower() == "stream" else "download"))
+    if mode == "download" and not cfg.get("offline"):
+        dest = downloader._local_name(cfg["download_dir"], r["name"], start)
+        if not downloader.already_cached(dest):
+            print(f"fetching surah {start:03d} first (cached forever after)...")
+
+            def cb(d, t):
+                pct = f"{100 * d // t}%" if t else f"{d // 1024}KB"
+                print(f"\r  {downloader.bar(d, t)} {pct}", end="", flush=True)
+
+            try:
+                downloader.download_surah(m["server"], r["name"], start,
+                                          cfg["download_dir"], progress=cb)
+                print("  saved")
+            except downloader.DownloadError as e:
+                print(f"\n  fetch failed ({e}) - streaming instead")
     tracks = []
     for n in nums[nums.index(start):]:
         fp = str(downloader._local_name(cfg["download_dir"], r["name"], n))
         tracks.append({"reciter": r["name"], "moshaf": m.get("name", ""), "surah": n,
                        "url": api.audio_url(m["server"], n),
                        "filepath": fp if os.path.exists(fp) else "",
-                       "prefer_local": bool(cfg.get("offline"))})
+                       "prefer_local": bool(cfg.get("offline")) or mode == "download"})
     player = Player(store=store, backend=auto_backend(args.backend), offline=cfg.get("offline"),
                     cache_dir=config.cache_dir())
     player.volume = int(cfg.get("volume", 80))
@@ -288,6 +305,8 @@ def main(argv=None):
     p.add_argument("--repeat", default="off", choices=["off", "one", "all"])
     p.add_argument("--sleep", type=int, default=0)
     p.add_argument("--offline", action="store_true")
+    p.add_argument("--stream", action="store_true", help="play instantly, no fetch first")
+    p.add_argument("--download", action="store_true", help="fetch before play (default)")
     p.add_argument("--backend", default=None, choices=["mpv", "ffplay", "dummy"])
     p.set_defaults(fn=cmd_play)
 
@@ -418,18 +437,19 @@ def cmd_resume(args):
 
 
 def cmd_setup(args):
-    """First-run: remember the YouTube URL and pre-download the 40-track shelf."""
+    """First-run: remember the YouTube URL and pre-download the shelf."""
+    from . import ytpl
     cfg = config.load()
     config.ensure_dirs()
     if args.url:
         cfg["youtube_playlist_url"] = args.url
         config.save(cfg)
         print(f"saved playlist URL to {config.config_path()}")
-    url = cfg.get("youtube_playlist_url", "")
+    url = (cfg.get("youtube_playlist_url", "") or "").strip() or ytpl.DEFAULT_PLAYLIST_URL
     if not url:
-        print("usage: tilawah setup <YouTube-playlist-URL>  (then it pre-downloads all 40)")
+        print("usage: tilawah setup <YouTube-playlist-URL>  (then it pre-downloads the shelf)")
         return 1
-    print("saving your 40 tracks — this takes a while once, then it's yours offline…")
+    print("saving your shelf tracks - this takes a while once, then it's yours offline...")
     args.url = url
     rc = cmd_get_playlist(args)
     if rc == 0 and args.reciter:

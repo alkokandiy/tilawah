@@ -410,6 +410,9 @@ class Player:
         self.sleep_fade = 30     # fade seconds
         self._sleep_start_vol = 80
         self._lock = threading.Lock()
+        # Gate hook: callable(track) -> True to proceed, False to hold.
+        # The TUI uses it for download-before-play (auto-advance included).
+        self.on_track_request = None
         self._watcher = threading.Thread(target=self._watch, daemon=True)
         self._watcher.start()
 
@@ -497,6 +500,14 @@ class Player:
             return None
         self.index = i
         t = self.queue[i]
+        if self.on_track_request is not None:
+            try:
+                proceed = self.on_track_request(t)
+            except Exception:
+                proceed = True
+            if not proceed:
+                self.playing = False
+                return "held"
         start_at = 0.0
         if self.store:
             try:

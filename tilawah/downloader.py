@@ -22,6 +22,13 @@ class DownloadError(Exception):
     pass
 
 
+class Cancelled(Exception):
+    """Raised by progress callbacks to abort a download mid-file.
+
+    The partial file stays on disk so the next attempt resumes via Range.
+    """
+
+
 def _local_name(download_dir, reciter_name, surah_number):
     safe = "".join(c if (c.isalnum() or c in " -_") else "_" for c in reciter_name).strip()
     return Path(str(download_dir)).expanduser() / safe / f"{int(surah_number):03d}.mp3"

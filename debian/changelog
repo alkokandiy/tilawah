@@ -1,3 +1,10 @@
+tilawah (1.2.0-1) unstable; urgency=medium
+
+  * Download-before-play overlay (%/ETA/cancel, auto-play on landing),
+    shelf ships via built-in playlist + one-key fetch, play_mode config.
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.1.1-1) unstable; urgency=medium
 
   * Fix exit segfault (join bg thread, no SQLite in test threads),

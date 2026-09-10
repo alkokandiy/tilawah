@@ -23,6 +23,7 @@ DEFAULTS = {
     "fps": 12,
     "show_all_reciters": False,
     "anim": "orbit",
+    "play_mode": "download",
 }
 
 

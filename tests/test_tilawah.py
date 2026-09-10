@@ -299,6 +299,18 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(api.JUZ30[0], 78)
         self.assertEqual(api.JUZ30[-1], 114)
 
+    def test_gate_holds_and_releases(self):
+        p = Player(store=None, backend=DummyBackend())
+        p.set_queue([{"reciter": "R", "moshaf": "M", "surah": 1,
+                      "url": "https://x/001.mp3", "duration": 60}])
+        p.on_track_request = lambda t: False
+        self.assertEqual(p.play_index(0), "held")
+        self.assertFalse(p.playing)
+        p.on_track_request = lambda t: True
+        self.assertIsNone(p.play_index(0))
+        self.assertTrue(p.playing)
+        p.close()
+
     def test_big_font_and_borders(self):
         from tilawah import art
         rows = art.big("TILAWAH")
@@ -378,6 +390,55 @@ class ControlTest(unittest.TestCase):
         self.assertTrue(any("Juz 30" in lb and "(3 surahs)" in lb for lb in labels))
         self.assertTrue(any(lb.startswith("whole Test Reciter") for lb in labels))
         app.store.close()
+
+    def test_fetch_gate_needs_saved_state(self):
+        import tempfile
+        app = self._app()
+        dd = tempfile.mkdtemp()
+        app.cfg["download_dir"] = dd
+        app.cfg["play_mode"] = "download"
+        t = {"reciter": "Some Reciter", "moshaf": "M", "surah": 7,
+             "url": "https://x/007.mp3"}
+        self.assertTrue(app._needs_fetch(t))
+        os.makedirs(os.path.join(dd, "Some Reciter"), exist_ok=True)
+        with open(os.path.join(dd, "Some Reciter", "007.mp3"), "wb") as fh:
+            fh.write(b"x" * 40000)
+        self.assertTrue(app._is_saved(t))
+        self.assertFalse(app._needs_fetch(t))
+        app.cfg["play_mode"] = "stream"
+        self.assertFalse(app._needs_fetch({"reciter": "R", "moshaf": "M",
+                                           "surah": 1, "url": "https://x/001.mp3"}))
+        app.store.close()
+
+    def test_poll_fetch_completes_to_play(self):
+        import tempfile
+        app = self._app()
+        dd = tempfile.mkdtemp()
+        app.cfg["download_dir"] = dd
+        os.makedirs(os.path.join(dd, "R"), exist_ok=True)
+        with open(os.path.join(dd, "R", "001.mp3"), "wb") as fh:
+            fh.write(b"x" * 40000)
+        app.player.set_queue([{"reciter": "R", "moshaf": "M", "surah": 1,
+                               "url": "https://x/001.mp3", "duration": 60}])
+        app.player.index = 0
+        app.fetch = {"running": False, "ok": True, "cancel": False,
+                     "label": "R - surah 001"}
+        app._pending = {"queue": True}
+        app.mode = "fetch"
+        app._poll_fetch()
+        self.assertIsNone(app.fetch)
+        self.assertEqual(app.mode, "browse")
+        self.assertTrue(app.player.playing)
+        app.player.close()
+        app.store.close()
+
+    def test_playlist_helpers(self):
+        from tilawah import ytpl
+        self.assertTrue(ytpl.DEFAULT_PLAYLIST_URL.startswith("https://"))
+        self.assertIn("list=", ytpl.DEFAULT_PLAYLIST_URL)
+        self.assertEqual(ytpl._dl_pct("[download]  45.2% of ~12MB"), 45.2)
+        self.assertEqual(ytpl._dl_pct("[download] 100%"), 100.0)
+        self.assertIsNone(ytpl._dl_pct("[info] hello"))
 
 
 if __name__ == "__main__":

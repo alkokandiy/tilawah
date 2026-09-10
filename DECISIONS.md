@@ -157,3 +157,16 @@ so the keymap below is mine; everything else follows the brief literally.
     cells), double-line U+2550 borders (single-cell, cursor-safe, unlike
     ambiguous-width glyphs). Every bordered write stays sliced to width per
     the round-2 ghost post-mortem.
+
+## Round 7 — download-before-play + shelf that ships (2026-09-10)
+
+29. **Play gates on fetch**: `Player.on_track_request` hook (also covers
+    auto-advance) + TUI fetch overlay with %, MB, ETA and cancel. Cancel
+    aborts mid-file via a progress-callback exception; the partial file
+    stays and resumes next time. `play_mode = download` default,
+    `"stream"` opts out (config or `play --stream`).
+30. **Shelf ships with the tool**: the playlist URL is a built-in default
+    (overridable), `setup` needs no args now, and fresh devices get a
+    one-key `Y` fetch with live count/percent (two-phase: enumerate, then
+    download; stoppable). Bundling 344MB into the .deb was rejected:
+    slow installs, repo bloat, re-download risk on every update.

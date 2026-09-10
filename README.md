@@ -45,9 +45,15 @@ tilawah tui --offline --calm     # offline + low-motion (slow SSH)
 
 In the TUI press `?` for all keys. The short version: `1-4` jump between
 panels, `Enter` plays, `/` finds a reciter, `Space` pauses, `D` opens the
-save center (one surah / whole reciter / Juz 30 / all), `v` fullscreen,
-`t` sleep timer, `Esc` always walks back to Now Playing, `q` quits.
+save center (one surah / whole reciter / Juz 30 / all), `Y` fetches your
+shelf tracks to a new device, `v` fullscreen, `t` sleep timer, `Esc`
+always walks back to Now Playing, `q` quits.
 Movement is arrows, vim `hjkl` or `WASD` - your choice.
+
+Plays fetch first: pressing play on anything unsaved shows a big progress
+overlay (percent, MB, time left, cancel) and starts audio the moment the
+file lands. Set `play_mode = "stream"` in config (or `play --stream`) for
+instant streaming instead.
 
 ## Config & data (XDG)
 

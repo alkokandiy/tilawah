@@ -17,11 +17,12 @@ at ~2fps - for slow terminals and SSH links.
 """
 
 import curses
+import os
 import threading
 import time
 
 from . import api as api_mod
-from . import art, downloader, themes
+from . import art, deps as deps_mod, downloader, themes
 from . import __version__ as APP_VERSION
 from .surahs import SURAHS, by_number
 
@@ -38,6 +39,7 @@ KEYMAP_DOC = [
     ("f", "favorite this track"), ("F / H", "favorites / history"),
     ("d", "save this surah"), ("a", "save whole reciter"),
     ("D", "save center: surah/reciter/Juz 30/all"),
+    ("Y", "fetch shelf tracks to this device"),
     ("x", "cancel saving"), ("t / T", "sleep timer set / cancel"),
     ("g", "theme"), ("v", "fullscreen"), ("o", "move player box"),
     ("?", "this help"), ("q", "quit"),
@@ -46,7 +48,7 @@ KEYMAP_DOC = [
 HINTS = {
     0: "Space play - n next - L/R seek - U/D vol - m mute - D save - ? keys",
     1: "1-4 panels - move: arrows/hjkl/WASD - Enter play - / find - d save 1 - ? keys",
-    2: "Enter play - D save center - 1-4 panels - ? keys",
+    2: "Enter play - Y fetch tracks - D save - 1-4 panels - ? keys",
     3: "Enter jump - z shuffle - e repeat - 1-4 panels - ? keys",
 }
 
@@ -103,9 +105,15 @@ class App:
         self.dl_title = ""
         self.dl_confirm = False
         self._dl_pending = []
+        self.fetch = None  # blocking fetch-before-play overlay job
+        self._pending = None  # {"queue": True} - what to play when fetch lands
+        self.shelf_job = None
         self._bg_thread = None
         self._needs_paint = True
         self.refresh_shelf()
+        player.on_track_request = self._gate
+        if not self.shelf and not status_msg:
+            self.say("Shelf empty on this device - press Y to fetch your tracks", 8)
         if refresh:
             self._bg_thread = threading.Thread(target=self._bg_refresh, daemon=True)
             self._bg_thread.start()
@@ -188,7 +196,7 @@ class App:
         self.msg = text
         self.msg_until = time.time() + secs
 
-    def make_track(self, reciter_name, moshaf_name, surah, url, local_path=""):
+    def make_track(self, reciter_name, moshaf_name, surah, url, local_path="", server=""):
         import os
         fp = local_path
         if not fp:
@@ -199,8 +207,169 @@ class App:
             except Exception:
                 fp = ""
         return {"reciter": reciter_name, "moshaf": moshaf_name, "surah": surah,
-                "url": url, "filepath": fp,
+                "url": url, "filepath": fp, "_server": server,
                 "prefer_local": bool(self.cfg.get("offline"))}
+
+    # -- download-before-play gate --
+    def _play_mode(self):
+        return "stream" if str(self.cfg.get("play_mode", "download")).lower() == "stream" else "download"
+
+    def _track_file(self, t):
+        try:
+            s = t.get("surah")
+            if not isinstance(s, int) or not t.get("reciter"):
+                return ""
+            return str(downloader._local_name(
+                self.cfg.get("download_dir", "~/Tilawah"), t["reciter"], s))
+        except Exception:
+            return ""
+
+    def _is_saved(self, t):
+        fp = t.get("filepath") or self._track_file(t)
+        return bool(fp) and downloader.already_cached(fp)
+
+    def _needs_fetch(self, t):
+        return (self._play_mode() == "download" and bool(t.get("url"))
+                and isinstance(t.get("surah"), int) and not self._is_saved(t))
+
+    def _gate(self, t):
+        """Player hook: True plays now; False holds for the fetch overlay."""
+        if not self._needs_fetch(t):
+            return True
+        self._fetch_one(t)
+        return False
+
+    def _fetch_one(self, t):
+        if self.fetch and self.fetch.get("running"):
+            self.say("already fetching - x cancels")
+            return
+        s = t.get("surah")
+        job = {"label": f"{t.get('reciter', '?')} - surah {s:03d}",
+               "running": True, "cancel": False, "ok": False, "error": "",
+               "bytes": 0, "total_bytes": 0, "rate": 0.0,
+               "t0": time.time(), "cur": f"{s:03d}.mp3"}
+        self.fetch = job
+        self._pending = {"queue": True}
+        self.mode = "fetch"
+        threading.Thread(target=self._fetch_worker, args=(job, t), daemon=True).start()
+
+    def _fetch_worker(self, job, t):
+        dd = self.cfg.get("download_dir", "~/Tilawah")
+        try:
+            server = t.get("_server") or (t["url"].rsplit("/", 1)[0] + "/")
+            last = [0, time.time()]
+
+            def cb(d, total):
+                if job.get("cancel"):
+                    raise downloader.Cancelled("cancelled")
+                now = time.time()
+                dt = max(0.2, now - last[1])
+                inst = (d - last[0]) / dt
+                job["rate"] = 0.7 * job["rate"] + 0.3 * inst
+                last[0], last[1] = d, now
+                job["bytes"] = d
+                job["total_bytes"] = total
+
+            downloader.download_surah(server, t["reciter"], t["surah"], dd, progress=cb)
+            job["ok"] = True
+        except downloader.Cancelled:
+            job["cancel"] = True
+        except Exception as e:
+            job["error"] = str(e) or "network error"
+        finally:
+            job["running"] = False
+
+    def _poll_fetch(self):
+        job = self.fetch
+        if not job or job.get("running"):
+            return
+        self.fetch = None
+        pend, self._pending = self._pending, None
+        if self.mode == "fetch":
+            self.mode = "browse"
+        if job.get("cancel"):
+            self.say("fetch stopped - file stays cached for next time", 5)
+            return
+        if not job.get("ok"):
+            self.say(f"fetch failed ({job.get('error')}) - press Enter to retry", 6)
+            return
+        if pend and pend.get("queue"):
+            err = self.player.play_index(self.player.index)
+            if err and err != "held":
+                self.say(err, 6)
+
+    # -- shelf fetch (Y): tracks ship with the tool via built-in playlist --
+    def _shelf_fetch(self):
+        if self.shelf_job and self.shelf_job.get("running"):
+            self.say("shelf fetch already running - x stops it")
+            return
+        ok, hint = deps_mod.yt_dlp()
+        if not ok:
+            self.say(hint, 6)
+            return
+        job = {"running": True, "stop": threading.Event(), "done": 0,
+               "total": 0, "pct": 0.0, "title": "", "error": ""}
+        self.shelf_job = job
+        self.say("fetching your shelf tracks - x stops", 5)
+        threading.Thread(target=self._shelf_worker, args=(job,), daemon=True).start()
+
+    def _shelf_worker(self, job):
+        from . import ytpl
+        url = (self.cfg.get("youtube_playlist_url") or "").strip() or ytpl.DEFAULT_PLAYLIST_URL
+        try:
+            try:
+                job["total"] = len(ytpl.list_entries(url))
+            except Exception:
+                pass
+            if job["stop"].is_set():
+                return
+
+            def prog(n, title):
+                job["done"] = n
+                job["title"] = title
+
+            def fprog(pct, _label):
+                job["pct"] = pct
+
+            ytpl.ingest(url, self.cfg.get("download_dir", "~/Tilawah"),
+                        store=self.store, max_items=40,
+                        progress=prog, file_progress=fprog, stop=job["stop"])
+        except Exception as e:
+            job["error"] = str(e) or "network error"
+        finally:
+            job["running"] = False
+            try:
+                self.refresh_shelf()
+            except Exception:
+                pass
+
+    def _poll_shelf(self):
+        job = self.shelf_job
+        if not job or job.get("running"):
+            return
+        self.shelf_job = None
+        n = len(self.shelf)
+        try:
+            stopped = job.get("stop").is_set() if job.get("stop") else False
+        except Exception:
+            stopped = False
+        if stopped and job.get("total") and job.get("done", 0) < job["total"]:
+            self.say(f"shelf fetch stopped - {n} tracks kept", 6)
+        elif job.get("error") and not n:
+            self.say(f"shelf fetch had trouble ({job['error']})", 6)
+        else:
+            self.say(f"shelf ready: {n} tracks live here now", 6)
+
+    def _shelf_size(self):
+        total = 0
+        for t in self.shelf:
+            try:
+                fp = t.get("filepath", "")
+                if fp and os.path.exists(fp):
+                    total += os.path.getsize(fp)
+            except OSError:
+                pass
+        return total
 
     def _play_tracks(self, tracks, start):
         self.player.set_queue(tracks, start=start)
@@ -212,6 +381,8 @@ class App:
         except Exception:
             pass
         err = self.player.play()
+        if err == "held":
+            return  # fetch overlay took over; it plays on completion
         if err:
             self.say(err, 6)
         elif resumed and resumed > 5:
@@ -233,7 +404,8 @@ class App:
             return
         s = nums[min(self.sur_sel, len(nums) - 1)]
         tracks = [self.make_track(r["name"], m.get("name", ""), n,
-                                  api_mod.audio_url(m["server"], n)) for n in nums]
+                                  api_mod.audio_url(m["server"], n),
+                                  server=m["server"]) for n in nums]
         self._play_tracks(tracks, nums.index(s))
 
     def play_fav_hist(self, entry):
@@ -248,7 +420,8 @@ class App:
         if surah not in nums:
             nums = [surah] + nums
         tracks = [self.make_track(r["name"], m.get("name", ""), n,
-                                  api_mod.audio_url(m["server"], n)) for n in nums]
+                                  api_mod.audio_url(m["server"], n),
+                                  server=m["server"]) for n in nums]
         self._play_tracks(tracks, nums.index(surah))
 
     def _cached_count(self, items):
@@ -543,6 +716,13 @@ class App:
                     self.say("saving cancelled")
                 self.mode = "browse"
             return None
+        if self.mode == "fetch":
+            if ch in (27, ord("x")):
+                if self.fetch and self.fetch.get("running"):
+                    self.fetch["cancel"] = True
+                self.mode = "browse"
+                self.say("fetch cancelled")
+            return None
         # global keys
         if ch == ord("q"):
             if self.show_help or self.mode != "browse" or self.filter:
@@ -693,12 +873,25 @@ class App:
                 self.say("pick a reciter first (panel 2)")
             return None
         if ch == ord("x"):
-            if self.dl and self.dl.get("running"):
+            if self.fetch and self.fetch.get("running"):
+                self.fetch["cancel"] = True
+                self.mode = "browse"
+                self.say("fetch cancelled")
+            elif self.shelf_job and self.shelf_job.get("running"):
+                try:
+                    self.shelf_job["stop"].set()
+                except Exception:
+                    pass
+                self.say("shelf fetch stopping...")
+            elif self.dl and self.dl.get("running"):
                 self.dl["cancel"] = True
                 self.say("saving cancelled")
             return None
         if ch == ord("D"):
             self._dl_open()
+            return None
+        if ch == ord("Y"):
+            self._shelf_fetch()
             return None
         if ch in (ord("1"), ord("2"), ord("3"), ord("4")):
             self.panel = ch - ord("1")
@@ -786,6 +979,8 @@ class App:
     def _paint(self, stdscr, static_t=None):
         stdscr.erase()
         h, w = stdscr.getmaxyx()
+        self._poll_fetch()
+        self._poll_shelf()
         t = static_t if static_t is not None else time.time() - self.t0
         if self.fullscreen:
             self._paint_full(stdscr, h, w, t)
@@ -811,6 +1006,15 @@ class App:
             parts.append(f"saving {d['label']}: {d['done']}/{d['total']}"
                          + (f" - {d['cur']} {fpct}%" if d.get("cur") else "")
                          + " - x cancels")
+        if self.fetch and self.fetch.get("running"):
+            f = self.fetch
+            b, tb = f.get("bytes", 0), f.get("total_bytes", 0)
+            pct = int(100 * b / tb) if tb else 0
+            parts.append(f"fetching {f.get('cur', '')}: {pct}% - x cancels")
+        if self.shelf_job and self.shelf_job.get("running"):
+            sj = self.shelf_job
+            tot = f"/{sj['total']}" if sj.get("total") else ""
+            parts.append(f"shelf: {sj.get('done', 0)}{tot} - {int(sj.get('pct', 0))}% - x stops")
         left = self.player.sleep_left()
         if left > 0:
             m, s = int(left // 60), int(left % 60)
@@ -891,6 +1095,8 @@ class App:
             self._help(stdscr, h, w)
         if self.mode == "download":
             self._download_box(stdscr, h, w)
+        if self.mode == "fetch":
+            self._fetch_box(stdscr, h, w)
         if self.mode == "search":
             self._prompt(stdscr, h, w, "find reciter: ", self.filter)
         elif self.mode == "sleep":
@@ -1016,7 +1222,9 @@ class App:
         self.refresh_shelf()
         rows = [t["title"] for t in self.shelf] or \
             ["Your shelf is empty.", "Run: tilawah setup   (saves your 40 YouTube tracks here)"]
-        self._list(stdscr, h, w, f"My Shelf - {len(self.shelf)} saved", rows, self.shelf_sel)
+        self._list(stdscr, h, w,
+                   f"My Shelf - {len(self.shelf)} saved ({self._shelf_size() / 1e6:.0f}MB)",
+                   rows, self.shelf_sel)
 
     def _queue(self, stdscr, h, w):
         rows = self.player.queue_view() or ["Queue is empty - play anything to fill it."]
@@ -1068,6 +1276,29 @@ class App:
         bh = min(h - 4, len(rows) + 2)
         y, x = max(1, (h - bh) // 2), max(0, (w - bw) // 2)
         self._frame(stdscr, y, x, bw, bh, "Save for offline")
+        for i, r in enumerate(rows[:bh - 2]):
+            self._frow(stdscr, y + 1 + i, x, bw, f" {r}",
+                       self.C("highlight") if i == 0 else self.C("text"))
+
+    def _fetch_box(self, stdscr, h, w):
+        job = self.fetch or {}
+        b, tb = job.get("bytes", 0), job.get("total_bytes", 0)
+        pct = (b / tb) if tb else 0.0
+        rate = job.get("rate", 0) or 0
+        eta = ""
+        if rate > 1024 and tb and b < tb:
+            secs = int((tb - b) / rate)
+            eta = f"  ~{secs // 60:02d}:{secs % 60:02d} left"
+        size = f"{b / 1e6:.1f} MB" + (f" / {tb / 1e6:.1f} MB" if tb else "")
+        rows = [f"Fetching first - {job.get('label', '')}",
+                f"  {size}   {int(pct * 100)}%{eta}",
+                "  " + progress_bar(pct, 30),
+                "",
+                "  x / Esc cancel"]
+        bw = min(w - 4, max([len(r) for r in rows]) + 6)
+        bh = min(h - 4, len(rows) + 2)
+        y, x = max(1, (h - bh) // 2), max(0, (w - bw) // 2)
+        self._frame(stdscr, y, x, bw, bh, "Fetching")
         for i, r in enumerate(rows[:bh - 2]):
             self._frow(stdscr, y + 1 + i, x, bw, f" {r}",
                        self.C("highlight") if i == 0 else self.C("text"))
