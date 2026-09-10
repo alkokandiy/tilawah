@@ -4,6 +4,12 @@ on:
   push:
     tags: ["v*"]
 
+# One release run per tag: duplicate/overlapping runs cancel instead of
+# racing each other on `gh release create` (second creator gets HTTP 422).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -54,9 +60,13 @@ jobs:
           (then `sudo apt install mpv yt-dlp ffmpeg` for audio + YouTube),
           or `pip install` the attached wheel. Full guide in README.md.
           EOF
-          gh release create "${{ github.ref_name }}" \
-            --title "Tilawah ${{ github.ref_name }}" \
-            --notes-file release-notes.md --latest
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "release already exists - uploading assets only"
+          else
+            gh release create "${{ github.ref_name }}" \
+              --title "Tilawah ${{ github.ref_name }}" \
+              --notes-file release-notes.md --latest
+          fi
           gh release upload "${{ github.ref_name }}" \
             dist/* tilawah_*.deb apt-repo/Packages.gz --clobber
 

@@ -1,15 +1,21 @@
+tilawah (1.0.7-1) unstable; urgency=medium
+
+  * CI: single release run per tag, idempotent release creation.
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.0.6-1) unstable; urgency=medium
 
   * CI: deploy job installs its own tools (unfrozen APT repo fix).
 
- -- Tilawah <tilawah@example.invalid>  Thu, 11 Sep 2026 00:00:00 +0000
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
 
 tilawah (1.0.5-1) unstable; urgency=medium
 
   * Version on splash/header, first-run fetch notice, catalog retry,
     correct 1.0.4 version stamp (1.0.4 shipped stamped 1.0.3).
 
- -- Tilawah <tilawah@example.invalid>  Thu, 11 Sep 2026 00:00:00 +0000
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
 
 tilawah (1.0.4-1) unstable; urgency=medium
 
