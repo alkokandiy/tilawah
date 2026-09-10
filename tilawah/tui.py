@@ -63,7 +63,8 @@ def vol_bar(vol, width=10):
 
 
 class App:
-    def __init__(self, store, cfg, player, reciters, cache_dir, status_msg=""):
+    def __init__(self, store, cfg, player, reciters, cache_dir, status_msg="",
+                 refresh=True):
         self.store = store
         self.cfg = cfg
         self.player = player
@@ -102,9 +103,20 @@ class App:
         self.dl_title = ""
         self.dl_confirm = False
         self._dl_pending = []
+        self._bg_thread = None
         self._needs_paint = True
         self.refresh_shelf()
-        threading.Thread(target=self._bg_refresh, daemon=True).start()
+        if refresh:
+            self._bg_thread = threading.Thread(target=self._bg_refresh, daemon=True)
+            self._bg_thread.start()
+
+    def close(self):
+        """Join the background refresh so no thread touches SQLite or the
+        network during interpreter teardown (that segfaults on exit)."""
+        t = self._bg_thread
+        self._bg_thread = None
+        if t is not None and t.is_alive() and t is not threading.current_thread():
+            t.join(timeout=10)
 
     # ---------------------------------------------------------- data
     def refresh_shelf(self):

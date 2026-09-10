@@ -1,3 +1,10 @@
+tilawah (1.1.1-1) unstable; urgency=medium
+
+  * Fix exit segfault (join bg thread, no SQLite in test threads),
+    CI runs energy tests with ffmpeg.
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.1.0-1) unstable; urgency=medium
 
   * Pulse visualizer from real loudness curves, big ASCII splash,

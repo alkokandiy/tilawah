@@ -233,10 +233,11 @@ class TuiRenderTest(unittest.TestCase):
         p.play()
         for panel in range(4):
             for fs in (False, True):
-                app = App(store, dict(cfg), p, [], d)
+                app = App(store, dict(cfg), p, [], d, refresh=False)
                 app.panel = panel
                 app.fullscreen = fs
                 app._paint(Stub())
+                app.close()
         store.close()
 
 
@@ -249,7 +250,9 @@ class ControlTest(unittest.TestCase):
         cfg = dict(config.DEFAULTS)
         p = Player(store=None, backend=DummyBackend())
         p.volume = 80
-        app = App(store, dict(cfg), p, list(reciters), d)
+        app = App(store, dict(cfg), p, list(reciters), d, refresh=False)
+        self.addCleanup(app.close)
+        self.addCleanup(store.close)
         app._store_dir = d
         return app
 

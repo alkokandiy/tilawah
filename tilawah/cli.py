@@ -110,6 +110,10 @@ def cmd_tui(args):
     except KeyboardInterrupt:
         pass
     finally:
+        try:
+            app.close()
+        except Exception:
+            pass
         player.close()
     cfg["volume"] = player.volume
     try:

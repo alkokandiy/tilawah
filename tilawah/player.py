@@ -752,8 +752,10 @@ class Player:
                 if self.playing and not self.paused and self.backend.poll_ended():
                     if time.time() - self._play_ts > 2.5:  # grace: mpv flags eof right at load
                         self.next(auto=True)
+            except KeyboardInterrupt:
+                return
             except Exception:
-                pass
+                pass  # transient backend hiccup: keep watching
 
 
 # ---------------------------------------------------------------- helpers
