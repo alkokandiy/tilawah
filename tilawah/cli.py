@@ -87,7 +87,8 @@ def cmd_tui(args):
     msg = ""
     if not reciters:
         msg = "offline with empty cache — downloads & streaming need connection once"
-    player = Player(store=store, backend=auto_backend(args.backend), offline=cfg.get("offline"))
+    player = Player(store=store, backend=auto_backend(args.backend), offline=cfg.get("offline"),
+                    cache_dir=config.cache_dir())
     player.volume = int(cfg.get("volume", 80))
     _graceful(player)
     if args.resume:
@@ -173,7 +174,8 @@ def cmd_play(args):
                        "url": api.audio_url(m["server"], n),
                        "filepath": fp if os.path.exists(fp) else "",
                        "prefer_local": bool(cfg.get("offline"))})
-    player = Player(store=store, backend=auto_backend(args.backend), offline=cfg.get("offline"))
+    player = Player(store=store, backend=auto_backend(args.backend), offline=cfg.get("offline"),
+                    cache_dir=config.cache_dir())
     player.volume = int(cfg.get("volume", 80))
     _graceful(player)
     if args.shuffle:

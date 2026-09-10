@@ -296,6 +296,73 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(api.JUZ30[0], 78)
         self.assertEqual(api.JUZ30[-1], 114)
 
+    def test_big_font_and_borders(self):
+        from tilawah import art
+        rows = art.big("TILAWAH")
+        self.assertEqual(len(rows), 6)
+        self.assertTrue(all(rows))
+        self.assertTrue(all(set(r) <= set("# ") for r in rows))
+        sp = art.splash_big(56, "1.0.8")
+        self.assertTrue(sp[0].startswith("\u2554"))
+        self.assertIn("v1.0.8", "\n".join(sp))
+        self.assertIn("press any key", "\n".join(sp))
+
+    def test_pulse_rows_shape(self):
+        from tilawah import art
+        curve = {"v": [i / 40 for i in range(40)], "dur": 100.0}
+        rows = art.pulse_rows(curve, 50.0, 100.0, 30, height=3)
+        self.assertEqual(len(rows), 6)
+        self.assertTrue(all(len(r) == 30 for r in rows))
+        self.assertEqual(art.pulse_rows(None, 0, 0, 30), [])
+
+    def test_energy_curve_loud_vs_quiet(self):
+        import shutil
+        import subprocess
+        if shutil.which("ffmpeg") is None:
+            self.skipTest("no ffmpeg")
+        from tilawah import nrg
+        d = tempfile.mkdtemp()
+        varied = os.path.join(d, "varied.wav")
+        flat = os.path.join(d, "flat.wav")
+        jobs = ((varied, "sine=frequency=440:duration=4,tremolo=f=1:d=1.0"),
+                (flat, "sine=frequency=440:duration=4,volume=0.05"))
+        for out, filt in jobs:
+            filt_in = filt.split(",", 1)
+            r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                                "-f", "lavfi", "-i", filt_in[0],
+                                "-af", filt_in[1], out], timeout=60)
+            self.assertEqual(r.returncode, 0)
+        cv = nrg.energy_curve(varied, buckets=32, cache_dir=d)
+        cf = nrg.energy_curve(flat, buckets=32, cache_dir=d)
+        self.assertIsNotNone(cv)
+        self.assertIsNotNone(cf)
+        self.assertGreater(max(cv["v"]) - min(cv["v"]), 0.5)  # breathes
+        self.assertLess(max(cf["v"]) - min(cf["v"]), 0.25)    # flat stays flat
+        self.assertTrue(all(0.0 <= v <= 1.0 for v in cv["v"]))
+
+    def test_player_fills_nrg(self):
+        import shutil
+        import subprocess
+        import time as _t
+        if shutil.which("ffmpeg") is None:
+            self.skipTest("no ffmpeg")
+        from tilawah import nrg
+        d = tempfile.mkdtemp()
+        wav = os.path.join(d, "t.wav")
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                        "-f", "lavfi", "-i", "sine=frequency=440:duration=2", wav],
+                       timeout=60, check=True)
+        p = Player(store=None, backend=DummyBackend(), cache_dir=d)
+        p.set_queue([{"reciter": "R", "moshaf": "M", "surah": 1,
+                      "filepath": wav, "duration": 60.0}])
+        p.play()
+        for _ in range(100):
+            if p.current().get("_nrg"):
+                break
+            _t.sleep(0.2)
+        self.assertIn("_nrg", p.current())
+        p.close()
+
     def test_save_dialog_options(self):
         app = self._app([{"id": 1, "name": "Test Reciter", "letter": "T",
                           "moshaf": [{"id": 1, "name": "M", "server": "https://x/",

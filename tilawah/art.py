@@ -221,3 +221,84 @@ def splash_lines(w=60):
         "|" + "press any key".center(w - 2) + "|",
         "+" + "-" * (w - 2) + "+",
     ]
+
+
+# Double-line borders: U+2550 block, always single-cell (unlike ambiguous-width
+# glyphs such as ▶, these never disturb cursor accounting). Every write using
+# them is still sliced to the visible width, per the ghost-text post-mortem.
+DB_TL, DB_TR, DB_BL, DB_BR, DB_H, DB_V = "╔", "╗", "╚", "╝", "═", "║"
+
+
+def dtop(w):
+    return DB_TL + DB_H * max(0, w - 2) + DB_TR
+
+
+def dbot(w):
+    return DB_BL + DB_H * max(0, w - 2) + DB_BR
+
+
+def drow(text, w):
+    return (DB_V + " " + text.ljust(w - 4)[:w - 4] + " " + DB_V)
+
+
+def splash_big(w=62, version=""):
+    """Maxxed-out splash: big TILAWAH, double border, subtitle."""
+    inner = []
+    for ln in big("TILAWAH"):
+        inner.append(DB_V + ln.center(w - 2)[:w - 2] + DB_V)
+    inner.append(DB_V + "terminal Qur'an audio player".center(w - 2)[:w - 2] + DB_V)
+    if version:
+        inner.append(DB_V + f"v{version}".center(w - 2)[:w - 2] + DB_V)
+    inner.append(DB_V + "press any key".center(w - 2)[:w - 2] + DB_V)
+    return [dtop(w)] + inner + [dbot(w)]
+
+
+# Hand-drawn 5x6 block font ('#' cells, plain ASCII, terminal-proof).
+BIG = {
+    "T": ["#####", "  #  ", "  #  ", "  #  ", "  #  ", "  #  "],
+    "I": ["#####", "  #  ", "  #  ", "  #  ", "  #  ", "#####"],
+    "L": ["#    ", "#    ", "#    ", "#    ", "#    ", "#####"],
+    "A": [" ### ", "#   #", "#   #", "#####", "#   #", "#   #"],
+    "W": ["#   #", "#   #", "#   #", "# # #", "## ##", "#   #"],
+    "H": ["#   #", "#   #", "#   #", "#####", "#   #", "#   #"],
+    "Q": [" ### ", "#   #", "#   #", "#   #", " ## #", "  ## #"],
+    "U": ["#   #", "#   #", "#   #", "#   #", "#   #", " ### "],
+    "R": ["#### ", "#   #", "#   #", "#### ", "# #  ", "#  # "],
+    "N": ["#   #", "##  #", "##  #", "# # #", "#  ##", "#   #"],
+    " ": ["     ", "     ", "     ", "     ", "     ", "     "],
+    "?": ["#####", "#   #", "  ## ", "  #  ", "     ", "  #  "],
+}
+
+
+def big(text):
+    """Render TEXT in the block font. Returns 6 strings."""
+    rows = [""] * 6
+    for ch in str(text).upper():
+        g = BIG.get(ch, BIG["?"])
+        for i in range(6):
+            rows[i] += g[i] + " "
+    return [r.rstrip() for r in rows]
+
+
+def pulse_rows(curve, pos, dur, width, height=4):
+    """Scrolling energy bars from a loudness curve + mirrored reflection.
+
+    Returns 2*height strings of `width` cells: history scrolls left, the live
+    edge is at the right. All block chars, terminal-proof.
+    """
+    from . import nrg as _nrg
+    if not curve or not dur or dur <= 0:
+        return []
+    height = max(2, height)  # height 1 blinds the meter (threshold would be 1.0)
+    n = len(curve["v"])
+    span = max(8.0, dur * 0.06)  # seconds of history on screen
+    vals = []
+    for i in range(width):
+        back = span * (width - 1 - i) / max(1, width - 1)
+        vals.append(_nrg.at(curve, pos - back, dur))
+    rows = []
+    for r in range(height):
+        thresh = (height - r) / height
+        rows.append("".join(BARS[7] if v >= thresh else " " for v in vals))
+    mirror = [row.replace(" ", ".") for row in reversed(rows)]
+    return rows + mirror

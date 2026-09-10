@@ -141,3 +141,19 @@ so the keymap below is mine; everything else follows the brief literally.
     (previously a black screen on slow connections); empty catalog gets its
     own message and loading screen; the background catalog refresh retries
     every 60s instead of once, so offline-first launches heal themselves.
+
+## Round 6 — ascii-maxxing (2026-09-10)
+
+27. **Pulse is real data, not decoration**: `nrg.py` scans each saved file
+    with ffmpeg ebur128 (background thread, JSON cache keyed by
+    path+size+mtime) and the fullscreen/Now visuals follow the recitation's
+    energy around the playhead. Three sampling bugs died on the way: (a)
+    max-pool resampling let one peak pin every bucket - mean-pooling keeps
+    verse/pause structure; (b) fixed linear LUFS map saturated on loud
+    YouTube masters (97.6% of samples pinned) - percentile stretch on raw
+    LUFS adapts to any mastering; (c) ebur128's 0.5s gating warmup faked
+    dynamics - warmup frames dropped.
+28. **Splash + frames**: hand-drawn 5x6 block font (big TILAWAH, ASCII-only
+    cells), double-line U+2550 borders (single-cell, cursor-safe, unlike
+    ambiguous-width glyphs). Every bordered write stays sliced to width per
+    the round-2 ghost post-mortem.

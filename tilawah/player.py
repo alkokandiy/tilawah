@@ -388,10 +388,11 @@ def auto_backend(prefer=None):
 class Player:
     """Queue engine owning shuffle/repeat/sleep-timer/resume/history."""
 
-    def __init__(self, store=None, backend=None, offline=False):
+    def __init__(self, store=None, backend=None, offline=False, cache_dir=None):
         self.store = store
         self.backend = backend or auto_backend()
         self.offline = offline
+        self.cache_dir = cache_dir
         self.queue = []          # list of track dicts
         self.index = -1
         self.shuffle = False
@@ -517,6 +518,7 @@ class Player:
         self.paused = False
         self._warm_next()
         self._probe_duration(t)
+        self._fill_nrg(t, src)
         if self.store:
             try:
                 self.store.add_history(t.get("reciter", ""), t.get("moshaf", ""),
@@ -690,6 +692,24 @@ class Player:
         if track.get("duration"):
             return
         threading.Thread(target=_probe_worker, args=(track,), daemon=True).start()
+
+    def _fill_nrg(self, track, src):
+        """Scan loudness for local files in the background; the TUI pulse
+        visualizer follows the real recitation energy."""
+        fp = src.get("filepath")
+        if not fp or track.get("_nrg"):
+            return
+
+        def work():
+            try:
+                from . import nrg as _nrg
+                curve = _nrg.energy_curve(fp, cache_dir=self.cache_dir)
+                if curve:
+                    track["_nrg"] = curve
+            except Exception:
+                pass
+
+        threading.Thread(target=work, daemon=True).start()
 
     def jump(self, queue_position):
         seq = self._order if self.shuffle else list(range(len(self.queue)))

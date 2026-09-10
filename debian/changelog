@@ -1,3 +1,10 @@
+tilawah (1.1.0-1) unstable; urgency=medium
+
+  * Pulse visualizer from real loudness curves, big ASCII splash,
+    double-line frames everywhere.
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.0.8-1) unstable; urgency=medium
 
   * CI: fix duplicated YAML key, self-validate workflow strictly.

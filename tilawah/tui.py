@@ -443,29 +443,33 @@ class App:
     def C(self, role):
         return self.pairs.get(role, curses.A_NORMAL)
 
+    def _frame(self, stdscr, y, x, bw, bh, title=""):
+        try:
+            stdscr.addstr(y, x, art.dtop(bw)[:bw], self.C("border"))
+            if title:
+                stdscr.addstr(y, x + 2, f" {title} "[:bw - 4], self.C("title"))
+            stdscr.addstr(y + bh - 1, x, art.dbot(bw)[:bw], self.C("border"))
+        except curses.error:
+            pass
+
+    def _frow(self, stdscr, y, x, bw, txt, attr=None):
+        try:
+            stdscr.addstr(y, x, art.DB_V + txt.ljust(bw - 2)[:bw - 2] + art.DB_V,
+                          attr if attr is not None else self.C("text"))
+        except curses.error:
+            pass
+
     def _splash(self, stdscr):
         stdscr.clear()
         h, w = stdscr.getmaxyx()
-        lines = art.splash_lines(min(60, w - 4))
-        y = max(0, h // 2 - len(lines) // 2 - 4)
-        for ln in art.frame("orbit", min(w - 2, 60), 8, 1.2):
-            try:
-                stdscr.addstr(y, max(0, (w - len(ln)) // 2), ln[:w - 1], self.C("dim"))
-            except curses.error:
-                pass
-            y += 1
-        y += 1
+        lines = art.splash_big(min(64, w - 2), APP_VERSION)
+        y = max(0, h // 2 - len(lines) // 2)
         for ln in lines:
             try:
                 stdscr.addstr(y, max(0, (w - len(ln)) // 2), ln[:w - 1], self.C("title"))
             except curses.error:
                 pass
             y += 1
-        try:
-            ver = f"v{APP_VERSION}   -   press any key"
-            stdscr.addstr(y, max(0, (w - len(ver)) // 2), ver[:w - 1], self.C("dim"))
-        except curses.error:
-            pass
         stdscr.refresh()
         stdscr.timeout(2200)
         stdscr.getch()
@@ -812,23 +816,44 @@ class App:
             return 0
 
     def _paint_full(self, stdscr, h, w, t):
-        desc = self.player.describe()
+        cur = self.player.current() or {}
         try:
-            stdscr.addstr(0, 1, desc[:w - 2], self.C("title"))
+            stdscr.addstr(0, 1, self.player.describe()[:w - 2], self.C("title"))
         except curses.error:
             pass
-        mh = max(4, h - 7)
-        frame = art.frame(self.anim, w - 2, mh, t, self._frac())
-        for i, ln in enumerate(frame):
+        try:
+            d = self.player.backend.dur() or cur.get("duration") or 0
+            p = self.player.backend.pos() or 0
+        except Exception:
+            d, p = 0, 0
+        lively = self.player.playing and not self.player.paused
+        y = 1
+        curve = cur.get("_nrg")
+        if curve and d:
+            # PULSE: real recitation energy around the playhead.
+            rows = art.pulse_rows(curve, p if lively else p, d, w - 2,
+                                  height=max(2, (h - 9) // 2))
+            for ln in rows[:max(0, h - 8)]:
+                try:
+                    stdscr.addstr(y, 1, ln[:w - 2], self.C("accent"))
+                except curses.error:
+                    pass
+                y += 1
+        else:
+            mh = max(4, h - 7)
+            for ln in art.frame(self.anim, w - 2, mh, t, self._frac()):
+                try:
+                    stdscr.addstr(y, 1, ln[:w - 2], self.C("accent"))
+                except curses.error:
+                    pass
+                y += 1
             try:
-                stdscr.addstr(1 + i, 1, ln[:w - 2], self.C("accent"))
+                stdscr.addstr(y, 1, art.bars(w - 2, t, lively)[:w - 2], self.C("accent"))
             except curses.error:
                 pass
-        lively = self.player.playing and not self.player.paused
         try:
-            stdscr.addstr(h - 5, 1, art.bars(w - 2, t, lively)[:w - 2], self.C("accent"))
-            line = f"{self.player.time_text()}   v exit fullscreen"
-            stdscr.addstr(h - 4, 1, line[:w - 2], self.C("text"))
+            stdscr.addstr(h - 4, 1, f"{self.player.time_text()}   v back - A anim"[:w - 2],
+                          self.C("text"))
             stdscr.addstr(h - 3, 1, progress_bar(self._frac(), w - 4)[:w - 2],
                           self.C("progress_fill"))
         except curses.error:
@@ -865,17 +890,11 @@ class App:
         bw, bh = min(w - 4, 56), 13
         y = min(max(2, by), max(2, h - bh - 4))
         x = min(max(1, bx), max(1, w - bw - 1))
-        try:
-            stdscr.addstr(y, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
-            stdscr.addstr(y, x + 2, " Now Playing "[:bw - 4], self.C("title"))
-            lines = self._now_lines(bw - 2, t)
-            for i in range(bh - 2):
-                txt = lines[i] if i < len(lines) else ""
-                stdscr.addstr(y + 1 + i, x, "|" + txt.ljust(bw - 2)[:bw - 2] + "|",
-                              self.C("text"))
-            stdscr.addstr(y + bh - 1, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
-        except curses.error:
-            pass
+        self._frame(stdscr, y, x, bw, bh, "Now Playing")
+        lines = self._now_lines(bw - 2, t)
+        for i in range(bh - 2):
+            self._frow(stdscr, y + 1 + i, x, bw,
+                       lines[i] if i < len(lines) else "")
 
     def _now_lines(self, width, t):
         cur = self.player.current()
@@ -908,10 +927,19 @@ class App:
         except Exception:
             pass
         lively = self.player.playing and not self.player.paused
+        viz = [art.bars(max(10, width - 2), t, lively)]
+        try:
+            dd = self.player.backend.dur() or cur.get("duration") or 0
+            pp = self.player.backend.pos() or 0
+        except Exception:
+            dd, pp = 0, 0
+        if cur.get("_nrg") and dd:
+            prow = art.pulse_rows(cur["_nrg"], pp, dd, max(10, width - 2), height=2)
+            if len(prow) >= 4:
+                viz = prow[:4]
         return [desc[:width],
                 f"{state}{kbps}   {self.player.time_text()}   {vol}",
-                progress_bar(self._frac(), max(10, width - 2)),
-                art.bars(max(10, width - 2), t, lively),
+                progress_bar(self._frac(), max(10, width - 2))] + viz + [
                 " ".join(pills)]
 
     def _library(self, stdscr, h, w):
@@ -994,8 +1022,9 @@ class App:
         for i in range(min(len(rows) - top, maxrows)):
             try:
                 on = top + i == sel
-                mark = "> " if on else "  "
-                stdscr.addstr(3 + i, 1, (mark + rows[top + i])[:w - 2],
+                row = rows[top + i]
+                text = row if row.startswith("> ") else ("> " if on else "  ") + row
+                stdscr.addstr(3 + i, 1, text[:w - 2],
                               self.C("highlight") if on else self.C("text"))
             except curses.error:
                 pass
@@ -1004,16 +1033,9 @@ class App:
         bw = min(w - 4, 52)
         bh = min(h - 4, len(KEYMAP_DOC) + 4)
         y, x = max(1, (h - bh) // 2), max(0, (w - bw) // 2)
-        try:
-            stdscr.addstr(y, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
-            stdscr.addstr(y, x + 2, " Keys (?) "[:bw - 4], self.C("title"))
-            for i, (k, v) in enumerate(KEYMAP_DOC[:bh - 2]):
-                stdscr.addstr(y + 1 + i, x,
-                              "|" + f" {k:22s} {v}".ljust(bw - 2)[:bw - 2] + "|",
-                              self.C("text"))
-            stdscr.addstr(y + bh - 1, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
-        except curses.error:
-            pass
+        self._frame(stdscr, y, x, bw, bh, "Keys (?)")
+        for i, (k, v) in enumerate(KEYMAP_DOC[:bh - 2]):
+            self._frow(stdscr, y + 1 + i, x, bw, f" {k:22s} {v}")
 
     def _download_box(self, stdscr, h, w):
         rows = [f"Save for offline - {self.dl_title}"]
@@ -1033,15 +1055,10 @@ class App:
         bw = min(w - 4, max([len(r) for r in rows]) + 6)
         bh = min(h - 4, len(rows) + 2)
         y, x = max(1, (h - bh) // 2), max(0, (w - bw) // 2)
-        try:
-            stdscr.addstr(y, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
-            for i, r in enumerate(rows[:bh - 2]):
-                stdscr.addstr(y + 1 + i, x,
-                              "|" + f" {r}".ljust(bw - 2)[:bw - 2] + "|",
-                              self.C("highlight") if i == 0 else self.C("text"))
-            stdscr.addstr(y + bh - 1, x, "+" + "-" * (bw - 2) + "+", self.C("border"))
-        except curses.error:
-            pass
+        self._frame(stdscr, y, x, bw, bh, "Save for offline")
+        for i, r in enumerate(rows[:bh - 2]):
+            self._frow(stdscr, y + 1 + i, x, bw, f" {r}",
+                       self.C("highlight") if i == 0 else self.C("text"))
 
     def _prompt(self, stdscr, h, w, label, buf):
         try:

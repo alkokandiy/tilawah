@@ -4,7 +4,8 @@ Stream or play offline 114 surahs from a Top-15 menu of the most-listened
 reciters, keep a personal shelf downloaded from YouTube, set a sleep timer —
 all in one terminal binary with an Islamic-geometric ambient visual.
 No daemon, no heavy dependencies: Python 3.10+ standard library does the
-work; `mpv` / `yt-dlp` / `ffmpeg` plug in when present.
+work; `mpv` / `yt-dlp` / `ffmpeg` plug in when present. Saved tracks get a
+real rhythm-reactive pulse visualizer (loudness-scanned per file).
 
 ## Install
 
