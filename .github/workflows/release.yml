@@ -8,8 +8,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: python3 -m unittest discover -s tests -v
 
@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build deps
         run: sudo apt-get update -q && sudo apt-get install -y -q build-essential debhelper dh-python pybuild-plugin-pyproject devscripts python3-setuptools
       - name: Python sdist/wheel
@@ -32,25 +32,23 @@ jobs:
         run: |
           mkdir -p apt-repo && cp tilawah_*.deb apt-repo/
           (cd apt-repo && dpkg-scanpackages --multiversion . /dev/null | gzip -9c > Packages.gz)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with: { name: dist, path: "dist/*" }
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "Tilawah ${{ github.ref_name }}"
-          body: |
-            Terminal-native Qur'an audio player: stream 114 surahs, save offline
-            audio, personal YouTube shelf, sleep timer, TUI with ambient visuals.
+      # gh CLI is preinstalled on runners: no third-party Node action needed.
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          Terminal-native Qur'an audio player: stream 114 surahs, save offline
+          audio, personal YouTube shelf, sleep timer, TUI with ambient visuals.
 
-            Install: `sudo apt install ./tilawah_*_all.deb`
-            (then `sudo apt install mpv yt-dlp ffmpeg` for audio + YouTube),
-            or `pip install` the attached wheel. Full guide in README.md.
-          draft: false
-          prerelease: false
-          make_latest: true
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            dist/*
-            tilawah_*.deb
-            apt-repo/Packages.gz
+          Install: `sudo apt install ./tilawah_*_all.deb`
+          (then `sudo apt install mpv yt-dlp ffmpeg` for audio + YouTube),
+          or `pip install` the attached wheel. Full guide in README.md.
+          EOF
+          gh release create "${{ github.ref_name }}" \
+            --title "Tilawah ${{ github.ref_name }}" \
+            --notes-file release-notes.md --latest
+          gh release upload "${{ github.ref_name }}" \
+            dist/* tilawah_*.deb apt-repo/Packages.gz --clobber
