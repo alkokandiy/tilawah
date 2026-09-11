@@ -699,7 +699,7 @@ class App:
     def _splash(self, stdscr):
         stdscr.clear()
         h, w = stdscr.getmaxyx()
-        lines = art.splash_big(min(64, w - 2), APP_VERSION)
+        lines = art.splash_classic(min(64, w - 2), APP_VERSION)
         y = max(0, h // 2 - len(lines) // 2)
         for ln in lines:
             try:

@@ -196,3 +196,10 @@ so the keymap below is mine; everything else follows the brief literally.
     quietly stopping. `tilawah doctor` gained a real audio-chain smoke test
     (synthesized tone through mpv) and a shelf integrity count, so "no
     sound / missing files" reports answer themselves.
+
+## Round 10 — Rich frontend removed (2026-09-10)
+
+35. **Kept the opening + borders, deleted the rest**: the Kufic splash and
+    motif divider were ported into the curses TUI (font moved to `art.py`);
+    `ui_rich.py`, the `rich` subcommand, its tests and all packaging/docs
+    traces are gone. One TUI to maintain, core back to pure stdlib.

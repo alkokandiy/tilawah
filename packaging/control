@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Tilawah <tilawah@example.invalid>
 Depends: python3 (>= 3.10)
 Recommends: mpv, yt-dlp, ffmpeg
-Suggests: python3-pil, python3-rich
+Suggests: python3-pil
 Section: sound
 Priority: optional
 Description: Terminal-native Qur'an audio player

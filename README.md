@@ -31,8 +31,6 @@ simulated playback until you install mpv).
 
 ```bash
 tilawah                          # launch the TUI
-tilawah rich                     # Rich Islamic-aesthetic dashboard (needs python3-rich)
-tilawah rich --demo              # print sample screens without interaction
 tilawah setup <YouTube-URL>      # first run: remember URL + pre-download the shelf
 tilawah play -r "Mishary Alafasi" -s 36
 tilawah download -r "Mishary Alafasi" -s 36     # one surah

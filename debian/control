@@ -10,7 +10,7 @@ Package: tilawah
 Architecture: all
 Depends: python3, ${misc:Depends}
 Recommends: mpv, yt-dlp, ffmpeg
-Suggests: python3-pil, python3-rich
+Suggests: python3-pil
 Description: Terminal-native Qur'an audio player
  Stream and offline-play Qur'an audio from mp3quran.net, keep a personal
  YouTube Top-40 shelf, sleep timer, ambient Islamic-geometric visuals —

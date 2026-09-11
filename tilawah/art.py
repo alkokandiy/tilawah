@@ -18,6 +18,8 @@ import os
 RAMP = " .:-=+*#%@"
 BARS = "▁▂▃▄▅▆▇█"
 STAR = "\u2736"
+STAR4 = "\u2727"
+MOTIF = "\u06de"
 
 ANIMS = ["orbit", "star", "waves"]
 
@@ -251,6 +253,46 @@ def splash_big(w=62, version=""):
         inner.append(DB_V + f"v{version}".center(w - 2)[:w - 2] + DB_V)
     inner.append(DB_V + "press any key".center(w - 2)[:w - 2] + DB_V)
     return [dtop(w)] + inner + [dbot(w)]
+
+
+# Square-Kufic-inspired 7-row geometric letterforms ('#' cells only).
+KUFIC = {
+    "T": ["#######", "#######", "   #   ", "   #   ", "   #   ", "   #   ", "   #   "],
+    "I": ["#######", "#######", "   #   ", "   #   ", "   #   ", "#######", "#######"],
+    "L": ["#      ", "#      ", "#      ", "#      ", "#      ", "#######", "#######"],
+    "A": ["  ###  ", " ##### ", "## # ##", "## # ##", "#######", "## # ##", "## # ##"],
+    "W": ["## # ##", "## # ##", "## # ##", "## # ##", "## # ##", "### ###", "### ###"],
+    "H": ["## # ##", "## # ##", "## # ##", "#######", "## # ##", "## # ##", "## # ##"],
+    "Q": [" ###  ", "#   # ", "#   # ", "#   # ", " ## # ", "  ## #", "       "],
+    "U": ["#   # ", "#   # ", "#   # ", "#   # ", "#   # ", " ###  ", "       "],
+    "R": ["####  ", "#   # ", "#   # ", "####  ", "# #   ", "#  #  ", "       "],
+    "N": ["#   # ", "##  # ", "##  # ", "# # # ", "#  ## ", "#   # ", "       "],
+    " ": ["       "] * 7,
+    "?": ["#######", "#     #", "    ## ", "   ##  ", "   #   ", "       ", "   #   "],
+}
+
+
+def kufic(text):
+    rows = [""] * 7
+    for ch in str(text).upper():
+        g = KUFIC.get(ch, KUFIC["?"])
+        for i in range(7):
+            rows[i] += g[i] + "  "
+    return [r.rstrip() for r in rows]
+
+
+def splash_classic(w=62, version=""):
+    """Curses splash: Kufic logo + motif divider, plain strings (no borders -
+    the TUI centers these itself). All lines fit `w` cells."""
+    lines = [ln.center(w)[:w] for ln in kufic("TILAWAH")]
+    side = "\u254c" * max(0, (w - 10) // 2)
+    div = f"{STAR4} {side} {MOTIF} {side} {STAR4}"
+    lines.append(div.center(w)[:w])
+    lines.append("terminal Qur'an audio player".center(w)[:w])
+    if version:
+        lines.append(f"v{version}".center(w)[:w])
+    lines.append("press any key".center(w)[:w])
+    return lines
 
 
 # Hand-drawn 5x6 block font ('#' cells, plain ASCII, terminal-proof).

@@ -506,121 +506,22 @@ class ControlTest(unittest.TestCase):
         app.store.close()
 
 
-try:
-    import rich  # noqa: F401
-    HAS_RICH = True
-except ImportError:
-    HAS_RICH = False
-
-
-@unittest.skipUnless(HAS_RICH, "no rich on this machine")
-class RichUiTest(unittest.TestCase):
-    def _console(self):
-        from rich.console import Console
-        from tilawah import ui_rich
-        return Console(width=100, record=True, theme=ui_rich.THEME)
-
-    def _app(self):
-        import tempfile
-        from tilawah import ui_rich
-        from tilawah.db import Store
-        from tilawah.player import DummyBackend, Player
-        d = tempfile.mkdtemp()
-        store = Store(os.path.join(d, "r.db"))
-        mosh = [{"id": 1, "name": "Hafs - Murattal", "server": "https://x/",
-                 "surah_total": 114, "surah_list": "1,2,18", "rewaya_id": 1}]
-        reciters = [{"id": 1, "name": "Mishary Alafasi", "letter": "M", "moshaf": mosh}]
-        p = Player(store=None, backend=DummyBackend())
-        p.set_queue([{"reciter": "Mishary Alafasi", "moshaf": "H", "surah": 18,
-                      "url": "https://x/018.mp3", "duration": 600.0}], 0)
-        p.play()
-        return ui_rich.RichApp(store, {"show_all_reciters": True}, p, reciters), store, p
-
-    def test_assets(self):
-        from tilawah import ui_rich
-        self.assertEqual(ui_rich.HAVE_RICH, True)
-        rows = ui_rich.kufic("TILAWAH")
+class ArtKuficTest(unittest.TestCase):
+    def test_kufic_font(self):
+        from tilawah import art
+        rows = art.kufic("TILAWAH")
         self.assertEqual(len(rows), 7)
-        self.assertIn("#", "".join(rows))
-        bar = ui_rich.pbar(0.5, 10)
-        self.assertEqual(len(bar), 10)
-        self.assertIn("\u25b0", bar)
-        self.assertIn("\u25b1", bar)
+        self.assertTrue(all(rows))
+        self.assertTrue(all(set(r) <= set("# ") for r in rows))
 
-    def test_dashboard_content(self):
-        app, store, p = self._app()
-        p.seek(300)
-        c = self._console()
-        c.print(app.render_dashboard())
-        out = c.export_text()
-        self.assertIn("Mishary Alafasi", out)
-        self.assertIn("Al-Kahf", out)
-        self.assertIn("\u25b0", out)
-        self.assertIn("\u23f5", out)
-        p.close()
-        store.close()
-
-    def test_library_content(self):
-        app, store, p = self._app()
-        c = self._console()
-        c.print(app.render_library())
-        out = c.export_text()
-        self.assertIn("Mishary Alafasi", out)
-        self.assertIn("\u06dd", out)
-        self.assertIn("\U0001f54b", out)  # Makki icon on Al-Fatihah
-        self.assertIn("Al-Kahf", out)
-        p.close()
-        store.close()
-
-    def test_shelf_and_queue_content(self):
-        import tempfile
-        app, store, p = self._app()
-        fd, fp = tempfile.mkstemp(suffix=".webm")
-        os.write(fd, b"x" * 1000)
-        os.close(fd)
-        store.upsert_track("Test Track", "http://x", fp)
-        c = self._console()
-        c.print(app.render_shelf())
-        out = c.export_text()
-        self.assertIn("My Shelf", out)
-        self.assertIn("Test Track", out)
-        self.assertIn("\U0001f4be", out)
-        os.remove(fp)
-        c2 = self._console()
-        c2.print(app.render_queue())
-        out2 = c2.export_text()
-        self.assertIn("Up Next", out2)
-        self.assertIn("\u23f5", out2)
-        p.close()
-        store.close()
-
-    def test_rich_keys(self):
-        app, store, p = self._app()
-        app.key("3")
-        self.assertEqual(app.panel, 2)
-        app.key("1")
-        self.assertEqual(app.panel, 0)
-        v0 = p.volume
-        app.key("up")
-        self.assertEqual(p.volume, v0 + 5)
-        app.key("j")
-        self.assertEqual(p.volume, v0)
-        app.key("?")
-        self.assertTrue(app.show_help)
-        app.key("?")
-        self.assertFalse(app.show_help)
-        self.assertEqual(app.key("q"), "quit")
-        p.close()
-        store.close()
-
-    def test_demo_runs(self):
-        from rich.console import Console
-        from tilawah import ui_rich
-        c = Console(width=100, record=True, theme=ui_rich.THEME)
-        self.assertEqual(ui_rich.demo(c), 0)
-        out = c.export_text()
-        for needle in ("Mishary Alafasi", "Al-Kahf", "My Shelf", "Up Next"):
-            self.assertIn(needle, out)
+    def test_classic_splash_bounds(self):
+        from tilawah import art
+        sp = art.splash_classic(60, "1.5.0")
+        self.assertGreater(len(sp), 10)
+        self.assertTrue(all(len(r) <= 60 for r in sp))
+        text = "\n".join(sp)
+        self.assertIn("v1.5.0", text)
+        self.assertIn("press any key", text)
 
 
 if __name__ == "__main__":
