@@ -506,6 +506,14 @@ class ControlTest(unittest.TestCase):
         app.store.close()
 
 
+try:
+    import rich  # noqa: F401
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+
+
+@unittest.skipUnless(HAS_RICH, "no rich on this machine")
 class RichUiTest(unittest.TestCase):
     def _console(self):
         from rich.console import Console
