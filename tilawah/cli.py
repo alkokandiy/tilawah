@@ -301,6 +301,44 @@ def cmd_add_link(args):
     return 0
 
 
+def cmd_rich(args):
+    try:
+        from . import ui_rich
+    except ImportError:
+        print("rich UI needs the rich package: sudo apt install python3-rich")
+        return 1
+    if not ui_rich.HAVE_RICH:
+        print("rich UI needs the rich package: sudo apt install python3-rich")
+        return 1
+    cfg, store = ctx()
+    if args.offline:
+        cfg["offline"] = True
+    if args.demo:
+        return ui_rich.demo()
+    import sys
+    if not sys.stdin.isatty():
+        print("rich UI needs a terminal - try: tilawah rich --demo")
+        return 1
+    reciters, _ = get_catalog(store)
+    player = Player(store=store, backend=auto_backend(args.backend), offline=cfg.get("offline"))
+    player.volume = int(cfg.get("volume", 80))
+    _graceful(player)
+    app = ui_rich.RichApp(store, cfg, player, reciters)
+    try:
+        app.run()
+    finally:
+        try:
+            player.close()
+        except Exception:
+            pass
+    cfg["volume"] = player.volume
+    try:
+        config.save(cfg)
+    except Exception:
+        pass
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="tilawah", description="terminal-native Qur'an audio player")
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -314,6 +352,12 @@ def main(argv=None):
     a.add_argument("--backend", default=None, choices=["mpv", "ffplay", "dummy"])
     a.add_argument("--resume", action="store_true")
     a.set_defaults(fn=cmd_tui)
+
+    ri = sub.add_parser("rich", help="Rich Islamic-aesthetic dashboard (needs python3-rich)")
+    ri.add_argument("--demo", action="store_true", help="print sample screens, no interaction")
+    ri.add_argument("--offline", action="store_true")
+    ri.add_argument("--backend", default=None, choices=["mpv", "ffplay", "dummy"])
+    ri.set_defaults(fn=cmd_rich)
 
     p = sub.add_parser("play", help="play without the TUI")
     p.add_argument("-r", "--reciter", default="")

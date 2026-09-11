@@ -901,6 +901,8 @@ class App:
             self.panel = 1
             self.list_view = "reciters"
             self.mode = "search"
+            self.filter = ""
+            self.rec_sel = 0
             return None
         if ch == ord("C"):
             self.show_all = not self.show_all

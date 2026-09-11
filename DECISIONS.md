@@ -158,6 +158,19 @@ so the keymap below is mine; everything else follows the brief literally.
     ambiguous-width glyphs). Every bordered write stays sliced to width per
     the round-2 ghost post-mortem.
 
+## Round 9 — Rich frontend (2026-09-10)
+
+33. **`tilawah/ui_rich.py`**: Rich Live dashboard on the same backend
+    (Player/Store/api/nrg shared, zero duplication): parchment/gold/emerald
+    palette, Kufic-style splash with fade, dashboard card (gold reciter,
+    emerald surah, braille spinner + curve-driven block visualizer, custom
+    progress bar), two-pane library (pointer, Makki/Madani icons), RTL-aware
+    shelf table, up-next queue card with marquee. Optional dependency
+    (`python3-rich`, graceful one-line hint); core stays stdlib-only.
+34. **Two real bugs caught live**: raw termios kills ONLCR and smears every
+    frame (fixed: raw input, cooked output); search re-entry appended to the
+    stale filter in both frontends (fixed: cleared on entry).
+
 ## Round 7 — download-before-play + shelf that ships (2026-09-10)
 
 29. **Play gates on fetch**: `Player.on_track_request` hook (also covers
