@@ -289,6 +289,7 @@ def splash_classic(w=62, version=""):
     div = f"{STAR4} {side} {MOTIF} {side} {STAR4}"
     lines.append(div.center(w)[:w])
     lines.append("terminal Qur'an audio player".center(w)[:w])
+    lines.append("audio courtesy of mp3quran.net".center(w)[:w])
     if version:
         lines.append(f"v{version}".center(w)[:w])
     lines.append("press any key".center(w)[:w])

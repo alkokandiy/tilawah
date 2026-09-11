@@ -522,6 +522,7 @@ class ArtKuficTest(unittest.TestCase):
         text = "\n".join(sp)
         self.assertIn("v1.5.0", text)
         self.assertIn("press any key", text)
+        self.assertIn("mp3quran.net", text)
 
 
 if __name__ == "__main__":

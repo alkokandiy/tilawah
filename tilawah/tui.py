@@ -708,7 +708,9 @@ class App:
                 pass
             y += 1
         stdscr.refresh()
-        stdscr.timeout(2200)
+        # Wait for a keypress - no automatic skip. The user reads the
+        # opening for as long as they want.
+        stdscr.timeout(-1)
         stdscr.getch()
         stdscr.timeout(80)
 

@@ -1,3 +1,9 @@
+tilawah (1.5.1-1) unstable; urgency=medium
+
+  * Credit mp3quran.net on splash, splash waits for a keypress.
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.5.0-1) unstable; urgency=medium
 
   * Kufic splash in classic TUI, Rich frontend removed.
