@@ -567,6 +567,15 @@ class ControlTest(unittest.TestCase):
             self.assertEqual(app.msg, "other")
         app.store.close()
 
+    def test_deps_api_shape(self):
+        from tilawah import deps
+        for fn in (deps.mpv, deps.yt_dlp, deps.ffmpeg, deps.pillow):
+            ok, hint = fn()
+            self.assertIsInstance(ok, bool)
+            self.assertTrue(hint is None or (isinstance(hint, str) and hint))
+        self.assertTrue(callable(deps.audio_check))
+        self.assertTrue(callable(deps.install_cmd))
+
 class ArtKuficTest(unittest.TestCase):
     def test_kufic_font(self):
         from tilawah import art
