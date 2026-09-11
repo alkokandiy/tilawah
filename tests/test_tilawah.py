@@ -196,6 +196,37 @@ class MiscTest(unittest.TestCase):
         self.assertIn("#", downloader.bar(50, 100))
         self.assertIn("?", downloader.bar(1, 0))
 
+    def test_platform_hints(self):
+        import shutil
+        import sys
+        from unittest import mock
+        from tilawah import deps
+        real = sys.platform
+        with mock.patch.object(shutil, "which", return_value=None):
+            try:
+                sys.platform = "darwin"
+                self.assertIn("brew install mpv", deps.mpv()[1])
+                sys.platform = "win32"
+                self.assertIn("pip install yt-dlp", deps.yt_dlp()[1])
+                saved = dict(sys.modules)
+                sys.modules["curses"] = None
+                sys.modules["_curses"] = None
+                try:
+                    self.assertIn("windows-curses", deps.windows_curses()[1])
+                finally:
+                    sys.modules.clear()
+                    sys.modules.update(saved)
+                sys.platform = "linux"
+                self.assertTrue(deps.install_cmd("mpv").startswith("sudo "))
+            finally:
+                sys.platform = real
+        self.assertIn("Pillow", deps.pillow()[1] or "Pillow")
+
+    def test_xdg_paths(self):
+        from tilawah import config
+        self.assertTrue(str(config.config_path()).endswith("tilawah/config.toml"))
+        self.assertTrue(str(config.db_path()).endswith("tilawah/tilawah.db"))
+
     def test_config_roundtrip(self):
         cfg = dict(config.DEFAULTS)
         cfg["theme"] = "dawn"
@@ -517,6 +548,24 @@ class ControlTest(unittest.TestCase):
         self.assertIsNone(app.shelf_job)
         app.store.close()
 
+
+    def test_viz_tip_once(self):
+        import shutil
+        import tempfile
+        from unittest import mock
+        app = self._app()
+        dd = tempfile.mkdtemp()
+        fp = os.path.join(dd, "001.mp3")
+        with open(fp, "wb") as fh:
+            fh.write(b"x" * 40000)
+        track = {"reciter": "R", "moshaf": "M", "surah": 1, "filepath": fp}
+        with mock.patch.object(shutil, "which", return_value=None):
+            app._maybe_viz_tip(track)
+            self.assertTrue("ffmpeg" in app.msg)
+            app.say("other")
+            app._maybe_viz_tip(track)  # second time stays silent
+            self.assertEqual(app.msg, "other")
+        app.store.close()
 
 class ArtKuficTest(unittest.TestCase):
     def test_kufic_font(self):

@@ -7,25 +7,38 @@ No daemon, no heavy dependencies: Python 3.10+ standard library does the
 work; `mpv` / `yt-dlp` / `ffmpeg` plug in when present. Saved tracks get a
 real rhythm-reactive pulse visualizer (loudness-scanned per file).
 
-## Install
+## Install — two lines, any machine
 
 ```bash
-# 1) From the project's APT server (easiest: updates included)
+# Debian / Ubuntu / Kali / Mint / Pop!_OS ...
 echo "deb [trusted=yes] https://alkokandiy.github.io/tilawah/ ./" \
   | sudo tee /etc/apt/sources.list.d/tilawah.list
-sudo apt update && sudo apt install tilawah
+sudo apt update && sudo apt install tilawah     # pulls mpv, yt-dlp, ffmpeg too
+```
 
-# 2) Grab the .deb from GitHub Releases and install it
-sudo apt install ./tilawah_1.0.0-1_all.deb   # pulls python3, suggests mpv/yt-dlp
+One line instead? `curl -sSL https://alkokandiy.github.io/tilawah/install.sh | sh`
 
-# 3) From source
+Other systems (same app, same features):
+- **Fedora/RHEL**: `sudo dnf install mpv yt-dlp ffmpeg`, then `pip install` this repo
+- **Arch/Manjaro**: `sudo pacman -S mpv yt-dlp ffmpeg`, then `pip install` this repo
+- **macOS**: `brew install mpv yt-dlp ffmpeg`, then `pip install` this repo
+- **Windows**: `pip install windows-curses yt-dlp` (+ mpv/ffmpeg from their sites);
+  library, downloads and shelf work, TUI needs Windows Terminal
+- Missing anything? `tilawah doctor` names it and prints the exact fix.
+
+## More install paths
+
+```bash
+# Grab the .deb from GitHub Releases and install it
+sudo apt install ./tilawah_*_all.deb
+
+# From source
 pip install .                                 # gives you the `tilawah` command
-sudo apt install mpv yt-dlp ffmpeg            # real audio + YouTube + shrinking
 ```
 
 `tilawah doctor` checks everything and prints the one-line fix for anything
-missing. The app never crashes on a missing dependency — it degrades (e.g.
-simulated playback until you install mpv).
+missing. The app never crashes on a missing dependency — it degrades loudly
+(e.g. it tells you there is NO SOUND until you install mpv).
 
 ## Use
 

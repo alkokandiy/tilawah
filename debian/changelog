@@ -1,3 +1,10 @@
+tilawah (1.6.0-1) unstable; urgency=medium
+
+  * Universal platform support (dep hints per OS, Windows/macOS paths),
+    two-line install, loud no-sound warning.
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.5.1-1) unstable; urgency=medium
 
   * Credit mp3quran.net on splash, splash waits for a keypress.

@@ -16,7 +16,23 @@ Reduced motion: `reduced_motion=true` (or --calm) renders one static frame
 at ~2fps - for slow terminals and SSH links.
 """
 
-import curses
+try:
+    import curses
+except ImportError:  # Windows without windows-curses: stub keeps the CLI,
+    # tests and non-TUI commands importable. The TUI itself refuses to run
+    # with a clear install hint (see cli.cmd_tui).
+    class _CursesFallback:
+        error = Exception
+        A_NORMAL = 0
+        KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 259, 258, 260, 261
+        KEY_BACKSPACE = 263
+
+        def __getattr__(self, _name):
+            def _missing(*_a, **_k):
+                raise RuntimeError("curses is unavailable on this machine")
+            return _missing
+
+    curses = _CursesFallback()
 import os
 import threading
 import time
@@ -442,6 +458,22 @@ class App:
             self.say(f"resumed at {m:02d}:{s:02d}  (0 = restart)")
         else:
             self.say("playing - Space pauses, ? shows keys")
+        self._maybe_viz_tip(tracks[start] if 0 <= start < len(tracks) else None)
+
+    def _maybe_viz_tip(self, track):
+        """One tip per session: local files deserve ffmpeg's richer visuals."""
+        if getattr(self, "_viz_warned", False) or not track:
+            return
+        fp = track.get("filepath") or ""
+        import os as _os
+        if not (fp and _os.path.exists(fp)):
+            return
+        import shutil as _sh
+        if _sh.which("ffmpeg") or _sh.which("ffprobe"):
+            return
+        self._viz_warned = True
+        _ok, hint = deps_mod.ffmpeg()
+        self.say("richer visuals need ffmpeg - " + (hint or "install ffmpeg"), 6)
 
     def play_selection(self):
         r, m, _ = self.current_moshaf()

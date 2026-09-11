@@ -1,6 +1,7 @@
 """Config + XDG paths. `~/.config/tilawah/config.toml` (tomllib read, manual write)."""
 
 import os
+import sys
 from pathlib import Path
 
 try:
@@ -28,6 +29,12 @@ DEFAULTS = {
 
 
 def _xdg(var, default):
+    if sys.platform == "win32":
+        # %APPDATA% for config, %LOCALAPPDATA% for data/cache.
+        if var == "XDG_CONFIG_HOME":
+            return Path(os.environ.get("APPDATA", str(Path.home()))) / APP
+        base = os.environ.get("LOCALAPPDATA", str(Path.home()))
+        return Path(base) / APP
     return Path(os.environ.get(var, str(Path.home() / default))).expanduser()
 
 

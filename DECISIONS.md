@@ -203,3 +203,21 @@ so the keymap below is mine; everything else follows the brief literally.
     motif divider were ported into the curses TUI (font moved to `art.py`);
     `ui_rich.py`, the `rich` subcommand, its tests and all packaging/docs
     traces are gone. One TUI to maintain, core back to pure stdlib.
+
+## Round 11 — universal platform (2026-09-10)
+
+36. **Two lines, everywhere**: APT source + install on Debian-likes,
+    `install.sh` one-liner from Pages, per-OS commands (dnf/pacman/brew/pip)
+    in the README. `dpkg-deb --root-owner-group` for proper package perms.
+37. **Hints follow the platform**: dependency messages name the right package
+    manager by reading `/etc/os-release` (apt/dnf/pacman/zypper/apk), brew
+    on macOS, pip/site links on Windows. Verified by platform-simulation
+    tests, not by owning five machines.
+38. **Windows/macOS honesty**: curses import stub keeps CLI/tests alive where
+    curses is absent (TUI refuses with the windows-curses fix); XDG dirs map
+    to APPDATA/LOCALAPPDATA on Windows. CI now runs the suite on
+    ubuntu + macos + windows. Windows TUI and macOS runs are best-effort and
+    untested on real hardware - stated, not implied.
+39. **No silent gaps left**: every optional dep either works, warns once with
+    the fix (ffmpeg visuals tip), or degrades loudly (dummy backend prints
+    NO SOUND). `tilawah doctor` remains the single source of truth.

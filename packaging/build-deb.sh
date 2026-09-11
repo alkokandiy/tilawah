@@ -27,6 +27,6 @@ cp "$ROOT/LICENSE" "$PKG/usr/share/doc/tilawah/copyright"
 cp "$ROOT/README.md" "$ROOT/DECISIONS.md" "$PKG/usr/share/doc/tilawah/"
 
 OUT="$ROOT/tilawah_${VER}-1_all.deb"
-dpkg-deb --build "$PKG" "$OUT" >/dev/null
+dpkg-deb --root-owner-group --build "$PKG" "$OUT" >/dev/null
 echo "built: $OUT"
 dpkg-deb -f "$OUT" Package Version Architecture Depends

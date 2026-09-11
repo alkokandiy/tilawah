@@ -75,7 +75,12 @@ def get_catalog(store, refresh=False):
 
 
 def cmd_tui(args):
-    import curses
+    try:
+        import curses  # noqa: F401
+    except ImportError:
+        _ok, hint = deps.windows_curses()
+        print(hint if hint else "curses is unavailable - the TUI needs a Unix terminal or windows-curses")
+        return 1
     cfg, store = ctx()
     if args.calm:
         cfg["reduced_motion"] = True
