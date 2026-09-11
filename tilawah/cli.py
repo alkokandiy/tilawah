@@ -210,6 +210,8 @@ def cmd_play(args):
         player.close()
         return 1
     print(f"playing {r['name']} from surah {start:03d} [{player.backend.name}] — Ctrl-C to stop")
+    if player.backend.name == "dummy":
+        print("note: simulated playback, no sound will come out — sudo apt install mpv")
     if args.sleep:
         player.start_sleep(args.sleep)
         print(f"sleep timer: {args.sleep} min")

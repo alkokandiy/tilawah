@@ -449,6 +449,18 @@ class ControlTest(unittest.TestCase):
                                            "surah": 1, "url": "https://x/001.mp3"}))
         app.store.close()
 
+    def test_audio_note_names_backend(self):
+        from tilawah.player import DummyBackend
+
+        class Loud(DummyBackend):
+            name = "mpv"
+
+        app = self._app()
+        self.assertIn("mpv", app._audio_note().lower())
+        app.player.backend = Loud()
+        self.assertEqual(app._audio_note(), "")
+        app.store.close()
+
     def test_poll_fetch_completes_to_play(self):
         import tempfile
         app = self._app()

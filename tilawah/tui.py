@@ -1186,6 +1186,16 @@ class App:
             self._frow(stdscr, y + 1 + i, x, bw,
                        lines[i] if i < len(lines) else "")
 
+    def _audio_note(self):
+        """Loud, never silent: dummy backend means no sound can come out."""
+        try:
+            name = self.player.backend.name
+        except Exception:
+            name = ""
+        if name == "dummy":
+            return "NO SOUND here: sudo apt install mpv"
+        return ""
+
     def _now_lines(self, width, t):
         cur = self.player.current()
         if not cur:
@@ -1227,10 +1237,14 @@ class App:
             prow = art.pulse_rows(cur["_nrg"], pp, dd, max(10, width - 2), height=2)
             if len(prow) >= 4:
                 viz = prow[:4]
-        return [desc[:width],
-                f"{state}{kbps}   {self.player.time_text()}   {vol}",
-                progress_bar(self._frac(), max(10, width - 2))] + viz + [
-                " ".join(pills)]
+        lines = [desc[:width],
+                 f"{state}{kbps}   {self.player.time_text()}   {vol}",
+                 progress_bar(self._frac(), max(10, width - 2))] + viz + [
+                 " ".join(pills)]
+        note = self._audio_note()
+        if note:
+            lines.insert(1, note[:width])
+        return lines
 
     def _library(self, stdscr, h, w):
         if self.list_view == "favs":
