@@ -223,9 +223,16 @@ class MiscTest(unittest.TestCase):
         self.assertIn("Pillow", deps.pillow()[1] or "Pillow")
 
     def test_xdg_paths(self):
+        import sys
         from tilawah import config
-        self.assertTrue(str(config.config_path()).endswith("tilawah/config.toml"))
-        self.assertTrue(str(config.db_path()).endswith("tilawah/tilawah.db"))
+        cp, dp = str(config.config_path()), str(config.db_path())
+        if sys.platform == "win32":
+            self.assertIn("tilawah", cp)
+            self.assertTrue(cp.endswith("config.toml"))
+            self.assertTrue(dp.endswith("tilawah.db"))
+        else:
+            self.assertTrue(cp.endswith("tilawah/config.toml"))
+            self.assertTrue(dp.endswith("tilawah/tilawah.db"))
 
     def test_config_roundtrip(self):
         cfg = dict(config.DEFAULTS)
@@ -288,7 +295,11 @@ class ControlTest(unittest.TestCase):
         return app
 
     def test_volume_direction_fixed(self):
-        import curses
+        try:
+            import curses
+        except ImportError:  # Windows: use the app's own stub constants
+            from tilawah import tui as _t
+            curses = _t.curses
         app = self._app()
         app.panel = 0
         app._key(curses.KEY_UP)
@@ -302,7 +313,11 @@ class ControlTest(unittest.TestCase):
         app.store.close()
 
     def test_wasd_moves_lists(self):
-        import curses
+        try:
+            import curses
+        except ImportError:  # Windows: use the app's own stub constants
+            from tilawah import tui as _t
+            curses = _t.curses
         app = self._app()
         app.panel = 3
         app.player.set_queue([

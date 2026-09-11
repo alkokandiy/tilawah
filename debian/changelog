@@ -1,3 +1,9 @@
+tilawah (1.6.1-1) unstable; urgency=medium
+
+  * Tests pass on Windows (stub curses constants, platform-aware paths).
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.6.0-1) unstable; urgency=medium
 
   * Universal platform support (dep hints per OS, Windows/macOS paths),
