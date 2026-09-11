@@ -170,3 +170,16 @@ so the keymap below is mine; everything else follows the brief literally.
     one-key `Y` fetch with live count/percent (two-phase: enumerate, then
     download; stoppable). Bundling 344MB into the .deb was rejected:
     slow installs, repo bloat, re-download risk on every update.
+
+## Round 8 — the silent switch (2026-09-10)
+
+31. **Root cause of "shelf won't play"**: starting a fresh queue called
+    `Player.play()`, which deliberately no-ops while audio runs - so the
+    backend kept the old track while every UI label showed the new one.
+    Fresh queues now go through `play_index` (pause/resume keeps `play()`).
+    Proven with a recording-backend test, not just eyeballing.
+32. **Silence is a bug**: tracks dying seconds in now raise an early-death
+    hook ("stopped 2s in - file may be broken, D re-saves it") instead of
+    quietly stopping. `tilawah doctor` gained a real audio-chain smoke test
+    (synthesized tone through mpv) and a shelf integrity count, so "no
+    sound / missing files" reports answer themselves.

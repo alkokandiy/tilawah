@@ -413,6 +413,9 @@ class Player:
         # Gate hook: callable(track) -> True to proceed, False to hold.
         # The TUI uses it for download-before-play (auto-advance included).
         self.on_track_request = None
+        # Early-death hook: callable(track, seconds_played) when a track EOFs
+        # seconds after starting (broken file / dead audio device symptoms).
+        self.on_track_ended_early = None
         self._watcher = threading.Thread(target=self._watch, daemon=True)
         self._watcher.start()
 
@@ -762,7 +765,21 @@ class Player:
                         self.backend.set_volume(int(self._sleep_start_vol * frac))
                 if self.playing and not self.paused and self.backend.poll_ended():
                     if time.time() - self._play_ts > 2.5:  # grace: mpv flags eof right at load
+                        try:
+                            pos_now = self.backend.pos()
+                        except Exception:
+                            pos_now = 0.0
+                        played_for = time.time() - self._play_ts
+                        cur = self.current()
                         self.next(auto=True)
+                        if (played_for < 8.0 and (pos_now or 0.0) < 3.0
+                                and self.repeat != REPEAT_ONE
+                                and self.on_track_ended_early is not None
+                                and cur is not None):
+                            try:
+                                self.on_track_ended_early(cur, pos_now or 0.0)
+                            except Exception:
+                                pass
             except KeyboardInterrupt:
                 return
             except Exception:

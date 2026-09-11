@@ -311,6 +311,45 @@ class ControlTest(unittest.TestCase):
         self.assertTrue(p.playing)
         p.close()
 
+    def test_new_queue_switches_source(self):
+        import tempfile
+        loads = []
+
+        class Rec(DummyBackend):
+            def play(self, source, start_at=0, volume=80):
+                loads.append(source.get("filepath") or source.get("url"))
+                return super().play(source, start_at, volume)
+
+        fd, fp = tempfile.mkstemp(suffix=".mp3")
+        os.write(fd, b"x" * 64)
+        os.close(fd)
+        try:
+            p = Player(store=None, backend=Rec())
+            p.set_queue([{"reciter": "R", "moshaf": "M", "surah": 1,
+                          "url": "https://x/001.mp3", "duration": 60}], 0)
+            p.play()
+            p.set_queue([{"reciter": "Shelf", "moshaf": "", "title": "T",
+                          "filepath": fp, "url": ""}], 0)
+            p.play_index(0)
+            self.assertEqual(loads, ["https://x/001.mp3", fp])
+            self.assertEqual(p.current().get("title"), "T")
+            p.close()
+        finally:
+            os.remove(fp)
+
+    def test_early_eof_hook(self):
+        fired = []
+        p = Player(store=None, backend=DummyBackend())
+        p.on_track_ended_early = lambda t, pos: fired.append((t, pos))
+        # ends at 2.8s: past the 2.5s load-grace, inside the 8s early window
+        p.set_queue([{"reciter": "R", "moshaf": "M", "surah": 1,
+                      "url": "https://x/001.mp3", "duration": 2.8}])
+        p.play()
+        time.sleep(5)
+        self.assertEqual(len(fired), 1)
+        self.assertLess(fired[0][1], 3.0)
+        p.close()
+
     def test_big_font_and_borders(self):
         from tilawah import art
         rows = art.big("TILAWAH")

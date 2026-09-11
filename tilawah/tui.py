@@ -113,6 +113,7 @@ class App:
         self._needs_paint = True
         self.refresh_shelf()
         player.on_track_request = self._gate
+        player.on_track_ended_early = self._blip
         if not self.shelf and not status_msg:
             self.say("Shelf empty on this device - press Y to fetch your tracks", 8)
         if refresh:
@@ -239,6 +240,10 @@ class App:
             return True
         self._fetch_one(t)
         return False
+
+    def _blip(self, track, pos):
+        label = track.get("title") or f"surah {track.get('surah')}"
+        self.say(f"stopped {pos:.0f}s in ({label}) - file may be broken, D re-saves it", 6)
 
     def _fetch_one(self, t):
         if self.fetch and self.fetch.get("running"):
@@ -416,6 +421,9 @@ class App:
         return total
 
     def _play_tracks(self, tracks, start):
+        # Fresh queue: always (re)start via play_index. Player.play() is only
+        # for pause/resume - it deliberately no-ops while audio runs, which
+        # used to swallow every reciter->shelf switch silently.
         self.player.set_queue(tracks, start=start)
         resumed = 0
         try:
@@ -424,7 +432,7 @@ class App:
                                               t.get("surah") or 0)
         except Exception:
             pass
-        err = self.player.play()
+        err = self.player.play_index(self.player.index)
         if err == "held":
             return  # fetch overlay took over; it plays on completion
         if err:
@@ -1023,7 +1031,7 @@ class App:
                                     "title": t["title"], "filepath": t["filepath"],
                                     "url": "", "_via": "saved file",
                                     "_file": t["filepath"].split("/")[-1]}], 0)
-            err = self.player.play()
+            err = self.player.play_index(0)
             self.say(err or f"playing {t['title']}")
         elif self.panel == 0 and not self.player.queue:
             self.panel = 1

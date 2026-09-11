@@ -564,13 +564,26 @@ def cmd_doctor(args):
     print(f"tilawah {__version__}")
     for name, (ok, hint) in deps.status().items():
         print(f"  [{'ok' if ok else 'MISSING'}] {name}" + ("" if ok else f" - {hint}"))
+    ok, msg = deps.audio_check()
+    print(f"  [{'ok' if ok else 'FAIL'}] sound: {msg}")
     try:
         api.fetch_suwar()
         print("  [ok] mp3quran.net reachable")
     except Exception as e:
         print(f"  [MISSING] mp3quran.net unreachable ({e}) - offline mode will use cache")
-    cfg = config.load()
+    cfg, store = ctx()
     print(f"  config: {config.config_path()}  downloads: {cfg.get('download_dir')}")
+    tracks = store.get_playlist()
+    if tracks:
+        import os
+        missing = [t for t in tracks
+                   if not (t.get("filepath") and os.path.exists(t["filepath"]))]
+        line = f"  shelf: {len(tracks)} registered, {len(tracks) - len(missing)} files present"
+        if missing:
+            line += f" - {len(missing)} MISSING, re-fetch with: tilawah setup"
+        print(line)
+    else:
+        print("  shelf: empty (press Y in the TUI or run: tilawah setup)")
     return 0
 
 
