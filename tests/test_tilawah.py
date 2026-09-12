@@ -674,12 +674,12 @@ class ControlTest(unittest.TestCase):
 
     def test_about_content(self):
         from tilawah import about as _about_mod
-        self.assertEqual(len(_about_mod.HADITHS), 2)
+        self.assertEqual(len(_about_mod.HADITHS), 3)
         self.assertEqual(len(_about_mod.SHELF_CHANNELS), 31)
         ls = _about_mod.lines(76)
         text = "\n".join(ls)
-        for needle in ("Bukhari 5050", "Tirmidhi 2910", "Tilawah",
-                       "mp3quran.net", "Raghad"):
+        for needle in ("Bukhari 5050", "Tirmidhi 2910", "Ahmad 8494",
+                       "Tilawah", "mp3quran.net", "Raghad"):
             self.assertIn(needle, text)
         self.assertTrue(all(len(r) <= 76 for r in ls))
 

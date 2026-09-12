@@ -1,4 +1,4 @@
 """Tilawah — terminal-native Qur'an audio player."""
 
-__version__ = "1.8.1"
+__version__ = "1.8.2"
 __app__ = "tilawah"

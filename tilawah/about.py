@@ -7,12 +7,16 @@ Tirmidhi 2910). Channel names fetched live from YouTube per video id.
 import textwrap
 
 HADITHS = [
-    ("Sahih al-Bukhari 5050",
+    ("Sahih al-Bukhari 5050; Sahih Muslim 800",
      "The Prophet (peace be upon him) said to Ibn Mas'ud: "
      "\"Recite the Qur'an to me.\" He recited Surat an-Nisa until verse 41, "
      "then the Prophet said, \"Enough,\" and his eyes overflowed with tears. "
-     "He said: \"I like to hear it from others.\""),
-    ("Jami' at-Tirmidhi 2910 (hasan sahih)",
+     "\"I like to hear it from others.\""),
+    ("Musnad Ahmad 8494 (Hasan)",
+     "Whoever listens to a verse from the Book of Allah will have a "
+     "multiplied reward. Whoever recites a verse will have a light on the "
+     "Day of Resurrection."),
+    ("Jami' at-Tirmidhi 2910 (graded Hasan)",
      "Whoever recites a letter from the Book of Allah gets a good deed, "
      "and each good deed is multiplied by ten. Alif is a letter, Lam is a "
      "letter, Mim is a letter - three letters, thirty rewards."),
