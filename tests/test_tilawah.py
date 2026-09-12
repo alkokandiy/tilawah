@@ -141,6 +141,23 @@ class PlayerTest(unittest.TestCase):
         p.close()  # must not raise, backend silenced
         self.assertFalse(p.playing)
 
+    def test_resolve_labels_what_plays(self):
+        import tempfile
+        fd, fp = tempfile.mkstemp(suffix=".mp3")
+        os.write(fd, b"x" * 64)
+        os.close(fd)
+        try:
+            p = Player(store=None, backend=DummyBackend())
+            _src, via = p._resolve({"reciter": "R", "moshaf": "M", "surah": 1,
+                                    "url": "https://x/001.mp3", "filepath": fp})
+            self.assertEqual(via, "saved file")
+            _src, via = p._resolve({"reciter": "R", "moshaf": "M", "surah": 1,
+                                    "url": "https://x/001.mp3"})
+            self.assertEqual(via, "stream")
+            p.close()
+        finally:
+            os.remove(fp)
+
     def test_resolve_labels_source(self):
         import tempfile
         fd, fp = tempfile.mkstemp(suffix=".mp3")
@@ -834,6 +851,38 @@ class ControlTest(unittest.TestCase):
                                create=True):
             rc = cli.cmd_tui(args)
         self.assertEqual(rc, 1)
+
+    def test_poll_fetch_announces_play(self):
+        import tempfile
+        app = self._app()
+        dd = tempfile.mkdtemp()
+        app.cfg["download_dir"] = dd
+        os.makedirs(os.path.join(dd, "R"), exist_ok=True)
+        with open(os.path.join(dd, "R", "001.mp3"), "wb") as fh:
+            fh.write(b"x" * 40000)
+        app.player.set_queue([{"reciter": "R", "moshaf": "M", "surah": 1,
+                               "url": "https://x/001.mp3", "duration": 60}])
+        app.player.index = 0
+        app.fetch = {"running": False, "ok": True, "cancel": False,
+                     "label": "R - surah 001"}
+        app._pending = {"queue": True}
+        app.mode = "fetch"
+        app._poll_fetch()
+        self.assertTrue(app.player.playing)
+        self.assertIn("playing", app.msg)
+        app.player.close()
+        app.store.close()
+
+    def test_space_during_fetch_reports_progress(self):
+        app = self._app()
+        app.mode = "fetch"
+        app.fetch = {"running": True, "kind": "yt", "pct": 42.0,
+                     "label": "Some track"}
+        self.assertIsNone(app._key(ord(" ")))
+        self.assertIn("42%", app.msg)
+        self.assertFalse(app.player.playing)
+        self.assertFalse(app.player.paused)
+        app.store.close()
 
 class ArtKuficTest(unittest.TestCase):
     def test_kufic_font(self):

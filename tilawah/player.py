@@ -493,9 +493,10 @@ class Player:
         if have_file and track.get("prefer_local"):
             return {"filepath": fp, "duration": track.get("duration")}, "saved file"
         if track.get("url"):
+            # backend plays filepath first when present: label what plays.
             return {"url": track["url"], "filepath": fp if have_file else None,
                     "duration": track.get("duration")}, \
-                "saved file" if (have_file and track.get("prefer_local")) else "stream"
+                "saved file" if have_file else "stream"
         if have_file:
             return {"filepath": fp, "duration": track.get("duration")}, "saved file"
         raise RuntimeError(f"no playable source for {self._label(track)}")

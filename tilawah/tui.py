@@ -351,6 +351,11 @@ class App:
             err = self.player.play_index(self.player.index)
             if err and err != "held":
                 self.say(err, 6)
+            elif not err:
+                try:
+                    self.say(f"playing {self.player.describe()}", 4)
+                except Exception:
+                    pass
 
     def _fetch_shelf_one(self, e):
         """Enter on a missing shelf track: fetch it now (overlay), and queue
@@ -903,6 +908,15 @@ class App:
                     self.fetch["cancel"] = True
                 self.mode = "browse"
                 self.say("fetch cancelled")
+            elif ch == ord(" "):
+                job = self.fetch or {}
+                if job.get("kind") == "yt":
+                    pct = int(job.get("pct", 0) or 0)
+                    self.say(f"still fetching ({pct}%) - it plays by itself", 3)
+                else:
+                    b, tb = job.get("bytes", 0), job.get("total_bytes", 0)
+                    pct = int(100 * b / tb) if tb else 0
+                    self.say(f"still fetching ({pct}%) - it plays by itself", 3)
             return None
         if self.mode == "url":
             if ch == 27:

@@ -259,3 +259,14 @@ Seven defects found by pattern sweep + edge probing, each reproduced first:
 Reviewed, no change: api MIN_GAP thread race (politeness only), ffplay
 mid-session binary removal (absurdly unlikely, paths guarded), _watch
 teardown spin (daemons die with process, no C modules in that path).
+
+## Round 15 — pause-trap + label truth (2026-09-10)
+
+44. **Auto-play now announces itself** ("playing X"): users mashed Space on
+    silence and paused what had just started, then needed Space again -
+    matching both reported bugs without any engine fault (switching verified
+    clean via headless-mpv + App-level probes).
+45. **Space during fetch reports progress** instead of vanishing silently.
+46. **Source labels describe what plays**: cached file + stream URL used to
+    print "stream" while mpv played the file. `_resolve` now labels by the
+    backend's actual pick.
