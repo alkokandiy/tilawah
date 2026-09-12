@@ -218,6 +218,13 @@ so the keymap below is mine; everything else follows the brief literally.
     to APPDATA/LOCALAPPDATA on Windows. CI now runs the suite on
     ubuntu + macos + windows. Windows TUI and macOS runs are best-effort and
     untested on real hardware - stated, not implied.
+## Round 13 — About tab (2026-09-10)
+
+42. **Hadith refs verified, not recalled**: Bukhari 5050 and Tirmidhi 2910
+    wordings/numbers checked against sunnah.com before shipping.
+43. **Channels are data**: uploader names fetched per video id from YouTube
+    (31 unique); videos that left the playlist still credit correctly.
+
 ## Round 12 — shelf that ships (2026-09-10)
 
 40. **Shelf is a catalog, not a folder listing**: hardcoded 36 video ids

@@ -382,6 +382,8 @@ def main(argv=None):
     shf.set_defaults(fn=cmd_shelf)
     rs = sub.add_parser("resume", help="show last position (TUI resumes automatically)")
     rs.set_defaults(fn=cmd_resume)
+    ab = sub.add_parser("about", help="why listen, about, sources")
+    ab.set_defaults(fn=cmd_about)
     t = sub.add_parser("theme", help="get/set theme")
     t.add_argument("name", nargs="?")
     t.set_defaults(fn=cmd_theme)
@@ -557,6 +559,14 @@ def _duration(path):
         return float((r.stdout or "").strip())
     except Exception:
         return 0.0
+
+
+def cmd_about(args):
+    import shutil
+    from . import about as _about_mod
+    width = max(40, min(100, shutil.get_terminal_size((80, 24)).columns - 4))
+    print("\n".join(_about_mod.lines(width)))
+    return 0
 
 
 def cmd_theme(args):

@@ -46,7 +46,7 @@ KEYMAP_DOC = [
     ("Space", "play / pause"), ("n / p", "next / previous track"),
     ("0", "restart track"), ("m", "mute"), ("- / =", "volume"),
     ("Arrows / hjkl / WASD", "move + seek + volume (see footer)"),
-    ("1 2 3 4", "jump to Now / Reciters / Shelf / Queue"),
+    ("1-5", "jump to panels (About is 5)"),
     ("Tab", "next panel"), ("Enter", "play selected"),
     ("Esc", "back to Now Playing"),
     ("/", "find reciter"), ("C", "Top picks <-> all reciters"),
@@ -63,10 +63,11 @@ KEYMAP_DOC = [
 ]
 
 HINTS = {
-    0: "Space play - n next - L/R seek - U/D vol - m mute - D save - ? keys",
-    1: "1-4 panels - move: arrows/hjkl/WASD - Enter play - / find - d save 1 - ? keys",
-    2: "Enter play - Y fetch tracks - D save - 1-4 panels - ? keys",
-    3: "Enter jump - z shuffle - e repeat - 1-4 panels - ? keys",
+    0: "Space play - n next - L/R seek - U/D vol - 1-5 panels - ? keys",
+    1: "1-5 panels - move: arrows/hjkl/WASD - Enter play - / find - d save 1 - ? keys",
+    2: "Enter play - Y fetch tracks - D save - 1-5 panels - ? keys",
+    3: "Enter jump - z shuffle - e repeat - 1-5 panels - ? keys",
+    4: "j/k scroll - 1-5 panels - ? keys",
 }
 
 
@@ -95,7 +96,7 @@ class App:
             self.anim = "orbit"
         self.show_all = bool(cfg.get("show_all_reciters", False))
         self.panel = 0
-        self.panels = ["Now Playing", "Reciters", "My Shelf", "Queue"]
+        self.panels = ["Now Playing", "Reciters", "My Shelf", "Queue", "About"]
         self.fullscreen = False
         self.move_mode = False
         self.box = [2, 2]
@@ -104,6 +105,7 @@ class App:
         self.col = 0  # 0 reciters, 1 surahs
         self.shelf_sel = 0
         self.q_sel = 0
+        self.about_sel = 0
         self.moshaf_idx = {}  # reciter name -> moshaf index
         self.filter = ""
         self.mode = "browse"  # browse | search | sleep | download | fetch | url
@@ -1070,9 +1072,11 @@ class App:
             self.mode = "url"
             self.buf = ""
             return None
-        if ch in (ord("1"), ord("2"), ord("3"), ord("4")):
-            self.panel = ch - ord("1")
-            self.show_help = False
+        if ch in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5")):
+            idx = ch - ord("1")
+            if idx < len(self.panels):
+                self.panel = idx
+                self.show_help = False
             return None
         # movement: arrows, vim hjkl and WASD mirror each other.
         # Up/k/w = up (or louder), Down/j/s = down (or quieter) in lists;
@@ -1124,6 +1128,8 @@ class App:
             self.shelf_sel = max(0, self.shelf_sel + dy)
         elif self.panel == 3:
             self.q_sel = max(0, self.q_sel + dy)
+        elif self.panel == 4:
+            self.about_sel = max(0, self.about_sel + dy)
         return None
 
     def _enter(self):
@@ -1274,6 +1280,8 @@ class App:
             self._shelf(stdscr, h, w)
         elif self.panel == 3:
             self._queue(stdscr, h, w)
+        elif self.panel == 4:
+            self._about(stdscr, h, w)
         if self.show_help:
             self._help(stdscr, h, w)
         if self.mode == "download":
@@ -1447,6 +1455,11 @@ class App:
         self._list(stdscr, h, w,
                    f"Up next - repeat {self.player.repeat} - shuffle "
                    f"{'on' if self.player.shuffle else 'off'}", rows, self.q_sel)
+
+    def _about(self, stdscr, h, w):
+        from . import about as _about_mod
+        rows = [ln[:w - 2] for ln in _about_mod.lines(max(40, w - 4))]
+        self._list(stdscr, h, w, "About Tilawah", rows, self.about_sel)
 
     def _list(self, stdscr, h, w, title, rows, sel):
         try:
