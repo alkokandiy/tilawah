@@ -19,6 +19,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.request
@@ -154,7 +155,8 @@ class MpvBackend(Backend):
     def __init__(self):
         if shutil.which("mpv") is None:
             raise RuntimeError("mpv not found - install it with: sudo apt install mpv")
-        self.sock_path = f"/tmp/tilawah-mpv-{os.getpid()}.sock"
+        self.sock_path = os.path.join(
+            tempfile.gettempdir(), f"tilawah-mpv-{os.getpid()}-{id(self) % 100000}.sock")
         try:
             os.unlink(self.sock_path)
         except OSError:

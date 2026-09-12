@@ -166,7 +166,7 @@ def list_entries(playlist_url, timeout=120):
         proc = subprocess.run(
             ["yt-dlp", "--flat-playlist", "--no-warnings",
              "--print", "%(id)s", playlist_url],
-            capture_output=True, text=True, timeout=timeout)
+            capture_output=True, text=True, errors="replace", timeout=timeout)
     except FileNotFoundError:
         raise PlaylistError(hint)
     if proc.returncode != 0:
@@ -200,7 +200,7 @@ def ingest(playlist_url, download_dir, store=None, progress=None, max_items=40,
     cmd = _build_cmd(playlist_url, dest, max_items, single)
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True)
+                                text=True, errors="replace")
     except FileNotFoundError:
         raise PlaylistError(hint)
     tracks = []

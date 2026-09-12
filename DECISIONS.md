@@ -219,7 +219,6 @@ so the keymap below is mine; everything else follows the brief literally.
     ubuntu + macos + windows. Windows TUI and macOS runs are best-effort and
     untested on real hardware - stated, not implied.
 ## Round 13 — About tab (2026-09-10)
-
 42. **Hadith refs verified, not recalled**: Bukhari 5050 and Tirmidhi 2910
     wordings/numbers checked against sunnah.com before shipping.
 43. **Channels are data**: uploader names fetched per video id from YouTube
@@ -239,3 +238,24 @@ so the keymap below is mine; everything else follows the brief literally.
 39. **No silent gaps left**: every optional dep either works, warns once with
     the fix (ffmpeg visuals tip), or degrades loudly (dummy backend prints
     NO SOUND). `tilawah doctor` remains the single source of truth.
+
+## Round 14 — systematic reliability pass (2026-09-10)
+
+Seven defects found by pattern sweep + edge probing, each reproduced first:
+1. (High) mid-download network errors escaped as raw tracebacks -
+   read loop now raises DownloadError.
+2. (High) sub-32KB error pages kept on disk poisoned the next Range
+   resume (HTML prefix + MP3 tail passed the size check) - junk deleted.
+3. (Medium) TUI traceback with no usable terminal (pipes/cron) - clean
+   one-liner + exit code 1, player still closed.
+4. (Medium) CLI IndexError on reciters with empty moshaf/surah lists -
+   `_pick_moshaf` helper + clean messages in play/download.
+5. (Medium) yt-dlp non-UTF8 stdout bytes crashed ingest - errors="replace"
+   on both Popen and list_entries paths.
+6. (Low) mpv IPC socket collided across Players in one process, and lived
+   in hardcoded /tmp - unique suffix + tempfile.gettempdir().
+7. (Low) Arabic output crashed strict-locale terminals - stdio reconfigured
+   to backslashreplace at startup.
+Reviewed, no change: api MIN_GAP thread race (politeness only), ffplay
+mid-session binary removal (absurdly unlikely, paths guarded), _watch
+teardown spin (daemons die with process, no C modules in that path).

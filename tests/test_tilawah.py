@@ -192,6 +192,103 @@ class VisualTest(unittest.TestCase):
 
 
 class MiscTest(unittest.TestCase):
+    def test_fetch_wraps_midread_error(self):
+        import tempfile
+        import urllib.request
+        from unittest import mock
+        from tilawah import downloader
+
+        class BadResp:
+            status = 200
+            headers = {"Content-Length": "1000000"}
+
+            def read(self, _n):
+                raise ConnectionResetError("conn dropped")
+
+            def close(self):
+                pass
+
+        dest = os.path.join(tempfile.mkdtemp(), "001.mp3")
+        with mock.patch.object(urllib.request, "urlopen", return_value=BadResp()):
+            with self.assertRaises(downloader.DownloadError):
+                downloader.fetch("https://x/001.mp3", dest)
+
+    def test_fetch_removes_error_page(self):
+        import tempfile
+        import urllib.request
+        from unittest import mock
+        from tilawah import downloader
+
+        class TinyResp:
+            status = 200
+            headers = {"Content-Length": "5120"}
+
+            def read(self, _n):
+                return b"<html>nope</html>"
+
+            def close(self):
+                pass
+
+        calls = {"n": 0}
+
+        class OnceResp(TinyResp):
+            def read(self, _n):
+                calls["n"] += 1
+                if calls["n"] > 1:
+                    return b""
+                return super().read(_n)
+
+        dest = os.path.join(tempfile.mkdtemp(), "001.mp3")
+        with mock.patch.object(urllib.request, "urlopen", return_value=OnceResp()):
+            with self.assertRaises(downloader.DownloadError):
+                downloader.fetch("https://x/001.mp3", dest)
+        self.assertFalse(os.path.exists(dest))
+
+    def test_mpv_sockets_unique_per_backend(self):
+        import subprocess
+        from unittest import mock
+        from tilawah.player import MpvBackend
+
+        class FakeProc:
+            def terminate(self):
+                pass
+
+        with mock.patch("shutil.which", return_value="/usr/bin/mpv"), \
+             mock.patch.object(subprocess, "Popen", return_value=FakeProc()), \
+             mock.patch("os.path.exists", return_value=True):
+            a = MpvBackend()
+            b = MpvBackend()
+        self.assertNotEqual(a.sock_path, b.sock_path)
+
+    def test_safe_stdio_never_strict(self):
+        import sys
+        from tilawah import cli
+
+        class Strict:
+            errors = "strict"
+
+            def reconfigure(self, **kw):
+                self.errors = kw.get("errors", self.errors)
+
+        fake = Strict()
+        real = (sys.stdout, sys.stderr)
+        sys.stdout = sys.stderr = fake
+        try:
+            cli._safe_stdio()
+        finally:
+            sys.stdout, sys.stderr = real
+        self.assertEqual(fake.errors, "backslashreplace")
+
+    def test_pick_moshaf_guards(self):
+        from tilawah import cli
+        self.assertIsNone(cli._pick_moshaf({"name": "X", "moshaf": []}, 0))
+        self.assertIsNone(cli._pick_moshaf({"name": "X"}, 0))
+        self.assertIsNone(cli._pick_moshaf(None, 0))
+        ms = [{"name": "a"}, {"name": "b"}]
+        self.assertEqual(cli._pick_moshaf({"moshaf": ms}, 5)["name"], "b")
+        self.assertEqual(cli._pick_moshaf({"moshaf": ms}, -3)["name"], "a")
+        self.assertEqual(cli._pick_moshaf({"moshaf": ms}, "x")["name"], "a")
+
     def test_bar(self):
         self.assertIn("#", downloader.bar(50, 100))
         self.assertIn("?", downloader.bar(1, 0))
@@ -537,6 +634,32 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(ytpl._dl_pct("[download] 100%"), 100.0)
         self.assertIsNone(ytpl._dl_pct("[info] hello"))
 
+    def test_ingest_survives_binary_garbage(self):
+        import stat
+        import subprocess
+        import tempfile
+        from unittest import mock
+        if os.name != "posix":
+            self.skipTest("posix fake-binary harness")
+        from tilawah import ytpl
+        d = tempfile.mkdtemp()
+        fake = os.path.join(d, "yt-dlp")
+        with open(fake, "wb") as fh:
+            fh.write(b"#!/usr/bin/env python3\n")
+            fh.write(b"import sys\n")
+            fh.write(b"sys.stdout.buffer.write(b'\\xff\\xfe not text at all\\x0a')\n")
+            fh.write(b"sys.stdout.buffer.write(b'Real Title ||| /tmp/real-track.mp3\\x0a')\n")
+        os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
+        old_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = d + os.pathsep + old_path
+        try:
+            with mock.patch.object(ytpl.deps, "yt_dlp", return_value=(True, None)):
+                tracks = ytpl.ingest("https://youtu.be/abc", d, max_items=1, single=True)
+        finally:
+            os.environ["PATH"] = old_path
+        self.assertEqual(len(tracks), 1)
+        self.assertEqual(tracks[0]["title"], "Real Title")
+
     def test_single_vs_playlist_cmd(self):
         from pathlib import Path
         from tilawah import ytpl
@@ -692,6 +815,20 @@ class ControlTest(unittest.TestCase):
         app._key(ord("j"))
         self.assertEqual(app.about_sel, 1)
         app.store.close()
+
+    def test_tui_no_terminal_fails_clean(self):
+        import curses as _real_curses
+        import types
+        from unittest import mock
+        from tilawah import cli
+        args = types.SimpleNamespace(calm=False, offline=False, theme="",
+                                     refresh=False, backend="dummy", resume=False)
+        with mock.patch.object(cli, "get_catalog", return_value=([], False)), \
+             mock.patch("tilawah.tui.App"), \
+             mock.patch.object(_real_curses, "wrapper",
+                               side_effect=_real_curses.error("nocbreak")):
+            rc = cli.cmd_tui(args)
+        self.assertEqual(rc, 1)
 
 class ArtKuficTest(unittest.TestCase):
     def test_kufic_font(self):

@@ -110,10 +110,16 @@ def cmd_tui(args):
             break
         except locale.Error:
             continue
+    failed = False
     try:
         curses.wrapper(app.run)
     except KeyboardInterrupt:
         pass
+    except curses.error:
+        # pipes, cron, TERM=dumb...: terminal unusable, say so plainly.
+        failed = True
+        print("cannot start the TUI here - no usable terminal "
+              "(try: tilawah doctor, or run inside a terminal emulator)")
     finally:
         try:
             app.close()
@@ -125,7 +131,7 @@ def cmd_tui(args):
         config.save(cfg)
     except Exception:
         pass
-    return 0
+    return 1 if failed else 0
 
 
 def _resume_last(store, player, offline=False, download_dir="~/Tilawah"):
@@ -162,6 +168,18 @@ def _resume_last(store, player, offline=False, download_dir="~/Tilawah"):
         pass
 
 
+def _pick_moshaf(reciter, idx):
+    """Moshaf at idx, or None when the catalog lists no audio at all."""
+    ms = (reciter or {}).get("moshaf") or []
+    if not ms:
+        return None
+    try:
+        idx = int(idx)
+    except (TypeError, ValueError):
+        idx = 0
+    return ms[max(0, min(idx, len(ms) - 1))]
+
+
 def cmd_play(args):
     cfg, store = ctx()
     if args.offline:
@@ -173,8 +191,14 @@ def cmd_play(args):
     if not r:
         print(f"reciter not found: {args.reciter!r} — try `tilawah reciters | head`")
         return 1
-    m = r["moshaf"][min(args.moshaf if args.moshaf is not None else int(cfg.get("default_moshaf", 0)), len(r["moshaf"]) - 1)]
+    m = _pick_moshaf(r, args.moshaf if args.moshaf is not None else int(cfg.get("default_moshaf", 0)))
+    if m is None:
+        print(f"no audio found for {r['name']} in the catalog")
+        return 1
     nums = api.available_surahs(m)
+    if not nums:
+        print(f"no surahs listed for {r['name']}")
+        return 1
     start = args.surah if args.surah in nums else nums[0]
     mode = "stream" if args.stream else ("download" if args.download
                                          else ("stream" if str(cfg.get("play_mode", "download")).lower() == "stream" else "download"))
@@ -248,7 +272,10 @@ def cmd_download(args):
             return 1
     total_files = 0
     for r in targets:
-        m = r["moshaf"][min(args.moshaf, len(r["moshaf"]) - 1)]
+        m = _pick_moshaf(r, args.moshaf)
+        if m is None:
+            print(f"{r['name']}: no audio in the catalog — skipped")
+            continue
         only = tuple(args.surahs) if args.surahs else ()
         if args.surah and not only:
             only = (args.surah,)
@@ -395,12 +422,23 @@ def main(argv=None):
         args = ap.parse_args(["tui"] + (argv or []))
         if not hasattr(args, "fn"):
             args.fn = cmd_tui
+    _safe_stdio()
     try:
         return args.fn(args)
     except KeyboardInterrupt:
         return 130
     except BrokenPipeError:
         return 0
+
+
+def _safe_stdio():
+    """Never die printing Arabic/emoji on strict-locale (C) terminals."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if stream.errors == "strict":
+                stream.reconfigure(errors="backslashreplace")
+        except Exception:
+            pass
 
 
 def cmd_reciters(args):

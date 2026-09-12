@@ -6,6 +6,7 @@
 - Progress callback receives (downloaded_bytes, total_bytes_or_0).
 """
 
+import os
 import time
 import urllib.request
 from pathlib import Path
@@ -67,7 +68,10 @@ def fetch(url, dest, progress=None, timeout=30):
     try:
         with open(dest, mode) as fh:
             while True:
-                chunk = resp.read(CHUNK)
+                try:
+                    chunk = resp.read(CHUNK)
+                except Exception as e:
+                    raise DownloadError(f"download interrupted for {url}: {e}")
                 if not chunk:
                     break
                 fh.write(chunk)
@@ -79,7 +83,15 @@ def fetch(url, dest, progress=None, timeout=30):
             resp.close()
         except Exception:
             pass
-    if dest.stat().st_size <= MIN_VALID:
+    try:
+        final = dest.stat().st_size
+    except OSError:
+        final = 0
+    if final <= MIN_VALID:
+        try:
+            os.remove(dest)  # error page, never audio: must not poison resumes
+        except OSError:
+            pass
         raise DownloadError(f"downloaded file too small, likely an error page: {url}")
     return dest
 
