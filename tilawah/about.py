@@ -16,11 +16,8 @@ HADITHS = [
      "Whoever listens to a verse from the Book of Allah will have a "
      "multiplied reward. Whoever recites a verse will have a light on the "
      "Day of Resurrection."),
-    ("Jami' at-Tirmidhi 2910 (graded Hasan)",
-     "Whoever recites a letter from the Book of Allah gets a good deed, "
-     "and each good deed is multiplied by ten. Alif is a letter, Lam is a "
-     "letter, Mim is a letter - three letters, thirty rewards."),
 ]
+
 
 ABOUT = [
     "Tilawah means 'recitation'.",
