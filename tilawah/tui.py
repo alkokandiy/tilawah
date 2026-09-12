@@ -128,6 +128,8 @@ class App:
         self._pending = None  # {"queue": True} - what to play when fetch lands
         self.shelf_job = None
         self._shelf_cache = []
+        self._fetch_thread = None
+        self._backfill_thread = None
         self._bg_thread = None
         self._needs_paint = True
         self.refresh_shelf()
@@ -142,10 +144,26 @@ class App:
     def close(self):
         """Join the background refresh so no thread touches SQLite or the
         network during interpreter teardown (that segfaults on exit)."""
-        t = self._bg_thread
-        self._bg_thread = None
-        if t is not None and t.is_alive() and t is not threading.current_thread():
-            t.join(timeout=10)
+        for job in (self.dl, self.fetch):
+            try:
+                if job and job.get("running"):
+                    job["cancel"] = True
+            except Exception:
+                pass
+        try:
+            if self.shelf_job and self.shelf_job.get("running"):
+                self.shelf_job["stop"].set()
+        except Exception:
+            pass
+        for attr in ("_bg_thread", "_fetch_thread", "_backfill_thread"):
+            t = getattr(self, attr, None)
+            setattr(self, attr, None)
+            try:
+                if (t is not None and t.is_alive()
+                        and t is not threading.current_thread()):
+                    t.join(timeout=10)
+            except Exception:
+                pass
 
     # ---------------------------------------------------------- data
     def refresh_shelf(self):
@@ -276,7 +294,8 @@ class App:
         self.fetch = job
         self._pending = {"queue": True}
         self.mode = "fetch"
-        threading.Thread(target=self._fetch_worker, args=(job, t), daemon=True).start()
+        self._fetch_thread = threading.Thread(target=self._fetch_worker, args=(job, t), daemon=True)
+        self._fetch_thread.start()
 
     def _fetch_worker(self, job, t):
         dd = self.cfg.get("download_dir", "~/Tilawah")
@@ -352,8 +371,8 @@ class App:
         self.fetch = job
         self._pending = {"queue": True}
         self.mode = "fetch"
-        threading.Thread(target=self._fetch_yt_worker, args=(job, e),
-                         daemon=True).start()
+        self._fetch_thread = threading.Thread(target=self._fetch_yt_worker, args=(job, e), daemon=True)
+        self._fetch_thread.start()
         rest = [r for r in (self._shelf_cache or [])
                 if r.get("static") and not r.get("present") and r.get("idx") != e.get("idx")]
         if rest:
@@ -401,9 +420,8 @@ class App:
                "total": len(items), "pct": 0.0, "title": "", "error": ""}
         self.shelf_job = job
         self.say(f"fetching {len(items)} more in background - listen on, x stops", 5)
-        threading.Thread(target=self._shelf_backfill_worker,
-                         args=(job, [(r["url"], r["title"]) for r in items]),
-                         daemon=True).start()
+        self._backfill_thread = threading.Thread(target=self._shelf_backfill_worker, args=(job, [(r["url"], r["title"]) for r in items]), daemon=True)
+        self._backfill_thread.start()
 
     def _shelf_backfill_worker(self, job, items):
         from . import ytpl

@@ -20,11 +20,14 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
-      - name: Install test deps (ffmpeg for the energy-curve tests)
+      - name: Install test deps (ffmpeg + pip packages)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
-          pip install -q rich
+          pip install -q yt-dlp
+      - name: Install test deps (pip packages)
+        if: runner.os != 'Linux'
+        run: pip install -q yt-dlp
       - run: python3 -m unittest discover -s tests -v
 
   build:

@@ -624,8 +624,11 @@ class ControlTest(unittest.TestCase):
         store.close()
 
     def test_shelf_enter_fetches_then_plays(self):
+        import shutil
         import tempfile
         from unittest import mock
+        if shutil.which("yt-dlp") is None:
+            self.skipTest("no yt-dlp - app shows install hint instead")
         from tilawah import ytpl
         app = self._app()
         dd = tempfile.mkdtemp()
@@ -663,6 +666,9 @@ class ControlTest(unittest.TestCase):
                 time.sleep(0.2)
             self.assertTrue(app.player.playing)
             self.assertTrue(created)
+            if app.shelf_job:
+                app.shelf_job["stop"].set()
+        app.close()  # joins bg workers before the store closes
         app.player.close()
         app.store.close()
 
