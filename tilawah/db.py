@@ -162,6 +162,9 @@ class Store:
         if filepath:
             self.cx.execute("UPDATE playlist SET filepath=?, title=? WHERE url=?",
                             (filepath, title, url))
+            # same file under an older key (e.g. retitled video): keep newest
+            self.cx.execute("DELETE FROM playlist WHERE filepath=? AND url<>?",
+                            (filepath, url))
         self.cx.commit()
 
     def get_playlist(self):

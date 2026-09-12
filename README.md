@@ -53,6 +53,12 @@ tilawah reciters [query]  |  tilawah surahs [query]   # library (offline OK)
 tilawah add-link <YouTube-URL>                # paste a link, audio lands on shelf
 tilawah favs | tilawah history | tilawah shelf | tilawah resume
 tilawah shrink-shelf --bitrate 96k              # save disk (duration-verified)
+
+My Shelf is a permanent 36-track catalog (the author's top picks): `[x]`
+means saved on your machine, `[ ]` means Enter fetches it first (with
+progress), then it plays - the rest keep downloading in the background
+while you listen. Tracks stay playable even if videos leave YouTube,
+because local files always win.
 tilawah theme dawn  |  tilawah doctor
 tilawah tui --offline --calm     # offline + low-motion (slow SSH)
 ```

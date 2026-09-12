@@ -125,6 +125,7 @@ class App:
         self.fetch = None  # blocking fetch-before-play overlay job
         self._pending = None  # {"queue": True} - what to play when fetch lands
         self.shelf_job = None
+        self._shelf_cache = []
         self._bg_thread = None
         self._needs_paint = True
         self.refresh_shelf()
@@ -316,24 +317,131 @@ class App:
             self.say(f"fetch failed ({job.get('error')}) - press Enter to retry", 6)
             return
         if pend and pend.get("queue"):
+            fp = job.get("filepath")
+            if fp:
+                try:
+                    cur = self.player.current()
+                    if cur is not None:
+                        cur["filepath"] = fp
+                        cur["_file"] = os.path.basename(fp)
+                        cur["_via"] = "saved file"
+                except Exception:
+                    pass
             err = self.player.play_index(self.player.index)
             if err and err != "held":
                 self.say(err, 6)
 
-    # -- shelf fetch (Y): tracks ship with the tool via built-in playlist --
-    def _shelf_fetch(self):
-        if self.shelf_job and self.shelf_job.get("running"):
-            self.say("shelf fetch already running - x stops it")
+    def _fetch_shelf_one(self, e):
+        """Enter on a missing shelf track: fetch it now (overlay), and queue
+        the rest in the background - listen while the shelf fills itself."""
+        if self.fetch and self.fetch.get("running"):
+            self.say("already fetching - x cancels")
             return
         ok, hint = deps_mod.yt_dlp()
         if not ok:
             self.say(hint, 6)
             return
+        t = {"reciter": "My Shelf", "moshaf": "", "title": e["title"],
+             "filepath": "", "url": e["url"]}
+        self.player.set_queue([t], 0)
+        job = {"kind": "yt", "label": e["title"][:60], "running": True,
+               "cancel": False, "ok": False, "error": "", "pct": 0.0,
+               "stop": threading.Event(), "filepath": ""}
+        self.fetch = job
+        self._pending = {"queue": True}
+        self.mode = "fetch"
+        threading.Thread(target=self._fetch_yt_worker, args=(job, e),
+                         daemon=True).start()
+        rest = [r for r in (self._shelf_cache or [])
+                if r.get("static") and not r.get("present") and r.get("idx") != e.get("idx")]
+        if rest:
+            self._shelf_backfill(entries=[r["idx"] for r in rest])
+
+    def _fetch_yt_worker(self, job, e):
+        from . import ytpl
+        try:
+            def fprog(pct, _label):
+                job["pct"] = pct
+                if job.get("cancel"):
+                    raise downloader.Cancelled("cancelled")
+
+            tracks = ytpl.ingest(e["url"], self.cfg.get("download_dir", "~/Tilawah"),
+                                 store=self.store, max_items=1, single=True,
+                                 progress=None, file_progress=fprog,
+                                 stop=job["stop"])
+            if tracks and os.path.exists(tracks[0]["filepath"]):
+                job["filepath"] = tracks[0]["filepath"]
+                job["ok"] = True
+            else:
+                job["error"] = "nothing fetched"
+        except downloader.Cancelled:
+            job["cancel"] = True
+        except Exception as ex:
+            job["error"] = str(ex) or "network error"
+        finally:
+            job["running"] = False
+
+    def _shelf_backfill(self, entries=None):
+        """Background-fetch unsaved shelf tracks (all, or the given idx set)."""
+        if self.shelf_job and self.shelf_job.get("running"):
+            return
+        from . import ytpl
+        try:
+            rows = ytpl.shelf_status(self.store, self.cfg.get("download_dir", "~/Tilawah"))
+        except Exception:
+            return
+        want = set(entries) if entries else None
+        items = [r for r in rows if r.get("static") and not r.get("present")
+                 and (want is None or r.get("idx") in want)]
+        if not items:
+            return
         job = {"running": True, "stop": threading.Event(), "done": 0,
-               "total": 0, "pct": 0.0, "title": "", "error": ""}
+               "total": len(items), "pct": 0.0, "title": "", "error": ""}
         self.shelf_job = job
-        self.say("fetching your shelf tracks - x stops", 5)
-        threading.Thread(target=self._shelf_worker, args=(job,), daemon=True).start()
+        self.say(f"fetching {len(items)} more in background - listen on, x stops", 5)
+        threading.Thread(target=self._shelf_backfill_worker,
+                         args=(job, [(r["url"], r["title"]) for r in items]),
+                         daemon=True).start()
+
+    def _shelf_backfill_worker(self, job, items):
+        from . import ytpl
+        try:
+            for url, title in items:
+                if job["stop"].is_set():
+                    break
+                job["title"] = title[:60]
+                job["pct"] = 0.0
+
+                def fprog(pct, _label, job=job):
+                    job["pct"] = pct
+
+                try:
+                    ytpl.ingest(url, self.cfg.get("download_dir", "~/Tilawah"),
+                                store=self.store, max_items=1, single=True,
+                                progress=None, file_progress=fprog,
+                                stop=job["stop"])
+                except Exception:
+                    pass
+                job["done"] += 1
+                job["pct"] = 0.0
+        except Exception as e:
+            job["error"] = str(e) or "network error"
+        finally:
+            job["running"] = False
+            try:
+                self.refresh_shelf()
+            except Exception:
+                pass
+
+    # -- shelf fetch (Y): tracks ship with the tool via built-in playlist --
+    def _shelf_fetch(self):
+        ok, hint = deps_mod.yt_dlp()
+        if not ok:
+            self.say(hint, 6)
+            return
+        self._shelf_backfill()
+        if not (self.shelf_job and self.shelf_job.get("running")):
+            self.say("shelf already complete - everything saved", 4)
 
     def _add_link(self, url):
         """Paste-a-link: fetch one audio into the shelf folder."""
@@ -378,63 +486,30 @@ class App:
             except Exception:
                 pass
 
-    def _shelf_worker(self, job):
-        from . import ytpl
-        url = (self.cfg.get("youtube_playlist_url") or "").strip() or ytpl.DEFAULT_PLAYLIST_URL
-        try:
-            try:
-                job["total"] = len(ytpl.list_entries(url))
-            except Exception:
-                pass
-            if job["stop"].is_set():
-                return
-
-            def prog(n, title):
-                job["done"] = n
-                job["title"] = title
-
-            def fprog(pct, _label):
-                job["pct"] = pct
-
-            ytpl.ingest(url, self.cfg.get("download_dir", "~/Tilawah"),
-                        store=self.store, max_items=40,
-                        progress=prog, file_progress=fprog, stop=job["stop"])
-        except Exception as e:
-            job["error"] = str(e) or "network error"
-        finally:
-            job["running"] = False
-            try:
-                self.refresh_shelf()
-            except Exception:
-                pass
-
     def _poll_shelf(self):
         job = self.shelf_job
         if not job or job.get("running"):
             return
         self.shelf_job = None
-        n = len(self.shelf)
+        n = self._saved_count()
         try:
             stopped = job.get("stop").is_set() if job.get("stop") else False
         except Exception:
             stopped = False
-        if stopped and job.get("total") and job.get("done", 0) < job["total"]:
+        if stopped and job.get("total") and job.get("done", 0) < job.get("total"):
             self.say(f"shelf fetch stopped - {n} tracks kept", 6)
         elif job.get("error") and not n:
             self.say(f"shelf fetch had trouble ({job['error']})", 6)
         else:
             self.say(f"shelf ready: {n} tracks live here now", 6)
 
-    def _shelf_size(self):
-        total = 0
-        for t in self.shelf:
-            try:
-                fp = t.get("filepath", "")
-                if fp and os.path.exists(fp):
-                    total += os.path.getsize(fp)
-            except OSError:
-                pass
-        return total
+    def _saved_count(self):
+        from . import ytpl
+        try:
+            rows = ytpl.shelf_status(self.store, self.cfg.get("download_dir", "~/Tilawah"))
+            return sum(1 for r in rows if r["present"])
+        except Exception:
+            return 0
 
     def _play_tracks(self, tracks, start):
         # Fresh queue: always (re)start via play_index. Player.play() is only
@@ -1061,14 +1136,20 @@ class App:
                 self.play_fav_hist(self.hist[min(self.sur_sel, len(self.hist) - 1)])
         elif self.panel == 3 and self.player.queue:
             self.player.jump(self.q_sel % len(self.player.queue))
-        elif self.panel == 2 and self.shelf:
-            t = self.shelf[min(self.shelf_sel, len(self.shelf) - 1)]
-            self.player.set_queue([{"reciter": "My Shelf", "moshaf": "",
-                                    "title": t["title"], "filepath": t["filepath"],
-                                    "url": "", "_via": "saved file",
-                                    "_file": t["filepath"].split("/")[-1]}], 0)
-            err = self.player.play_index(0)
-            self.say(err or f"playing {t['title']}")
+        elif self.panel == 2 and getattr(self, "_shelf_cache", None):
+            e = self._shelf_cache[min(self.shelf_sel, len(self._shelf_cache) - 1)]
+            if e["present"]:
+                self.player.set_queue([{"reciter": "My Shelf", "moshaf": "",
+                                        "title": e["title"], "filepath": e["filepath"],
+                                        "url": e["url"], "_via": "saved file",
+                                        "_file": os.path.basename(e["filepath"])}], 0)
+                err = self.player.play_index(0)
+                if err == "held":
+                    return None
+                self.say(err or f"playing {e['title']}")
+            else:
+                self._fetch_shelf_one(e)
+            return None
         elif self.panel == 0 and not self.player.queue:
             self.panel = 1
             self.say("pick a reciter, Enter plays", 6)
@@ -1337,13 +1418,29 @@ class App:
                 pass
 
     def _shelf(self, stdscr, h, w):
-        self.refresh_shelf()
-        rows = [t["title"] for t in self.shelf] or \
-            ["Your shelf is empty.",
-             "Press Y to fetch your tracks, or u to paste one link."]
+        from . import ytpl
+        try:
+            rows = ytpl.shelf_status(self.store, self.cfg.get("download_dir", "~/Tilawah"))
+        except Exception:
+            rows = []
+        self._shelf_cache = rows
+        saved, mb = 0, 0.0
+        labels = []
+        for r in rows:
+            if r["present"]:
+                saved += 1
+                try:
+                    mb += os.path.getsize(r["filepath"]) / 1e6
+                except OSError:
+                    pass
+                labels.append("[x] " + r["title"])
+            else:
+                labels.append("[ ] " + r["title"] + "  -  Enter fetches")
+        if not rows:
+            labels = ["Shelf unavailable - check storage permissions."]
         self._list(stdscr, h, w,
-                   f"My Shelf - {len(self.shelf)} saved ({self._shelf_size() / 1e6:.0f}MB)",
-                   rows, self.shelf_sel)
+                   f"My Shelf - {saved}/{len(rows)} saved ({mb:.0f}MB)",
+                   labels, self.shelf_sel)
 
     def _queue(self, stdscr, h, w):
         rows = self.player.queue_view() or ["Queue is empty - play anything to fill it."]
@@ -1401,19 +1498,27 @@ class App:
 
     def _fetch_box(self, stdscr, h, w):
         job = self.fetch or {}
-        b, tb = job.get("bytes", 0), job.get("total_bytes", 0)
-        pct = (b / tb) if tb else 0.0
-        rate = job.get("rate", 0) or 0
-        eta = ""
-        if rate > 1024 and tb and b < tb:
-            secs = int((tb - b) / rate)
-            eta = f"  ~{secs // 60:02d}:{secs % 60:02d} left"
-        size = f"{b / 1e6:.1f} MB" + (f" / {tb / 1e6:.1f} MB" if tb else "")
-        rows = [f"Fetching first - {job.get('label', '')}",
-                f"  {size}   {int(pct * 100)}%{eta}",
-                "  " + progress_bar(pct, 30),
-                "",
-                "  x / Esc cancel"]
+        if job.get("kind") == "yt":
+            pct = (job.get("pct", 0) or 0) / 100.0
+            rows = [f"Fetching - {job.get('label', '')}",
+                    f"  {int(pct * 100)}%",
+                    "  " + progress_bar(pct, 30),
+                    "",
+                    "  x / Esc cancel"]
+        else:
+            b, tb = job.get("bytes", 0), job.get("total_bytes", 0)
+            pct = (b / tb) if tb else 0.0
+            rate = job.get("rate", 0) or 0
+            eta = ""
+            if rate > 1024 and tb and b < tb:
+                secs = int((tb - b) / rate)
+                eta = f"  ~{secs // 60:02d}:{secs % 60:02d} left"
+            size = f"{b / 1e6:.1f} MB" + (f" / {tb / 1e6:.1f} MB" if tb else "")
+            rows = [f"Fetching first - {job.get('label', '')}",
+                    f"  {size}   {int(pct * 100)}%{eta}",
+                    "  " + progress_bar(pct, 30),
+                    "",
+                    "  x / Esc cancel"]
         bw = min(w - 4, max([len(r) for r in rows]) + 6)
         bh = min(h - 4, len(rows) + 2)
         y, x = max(1, (h - bh) // 2), max(0, (w - bw) // 2)

@@ -591,6 +591,81 @@ class ControlTest(unittest.TestCase):
         self.assertTrue(callable(deps.audio_check))
         self.assertTrue(callable(deps.install_cmd))
 
+    def test_shelf_status_engine(self):
+        import tempfile
+        from tilawah import ytpl
+        from tilawah.db import Store
+        d = tempfile.mkdtemp()
+        dd = os.path.join(d, "dl")
+        os.makedirs(os.path.join(dd, "Playlist"))
+        store = Store(os.path.join(d, "t.db"))
+        rows = ytpl.shelf_status(store, dd)
+        self.assertEqual(len(rows), 36)
+        self.assertFalse(any(r["present"] for r in rows))
+        # NN-prefix file resolves without any DB row
+        first = rows[0]
+        fp = os.path.join(dd, "Playlist", f"{first['idx']:02d} - something.webm")
+        with open(fp, "wb") as fh:
+            fh.write(b"x" * 2048)
+        rows = ytpl.shelf_status(store, dd)
+        hit = [r for r in rows if r["idx"] == first["idx"]][0]
+        self.assertTrue(hit["present"])
+        self.assertEqual(hit["filepath"], fp)
+        # custom extra link appends once, never dupes (own file!)
+        fp2 = os.path.join(dd, "Playlist", "my-lecture.webm")
+        with open(fp2, "wb") as fh:
+            fh.write(b"y" * 2048)
+        store.upsert_track("My Lecture", "https://youtu.be/zzz", fp2)
+        rows = ytpl.shelf_status(store, dd)
+        extras = [r for r in rows if not r["static"]]
+        self.assertEqual(len(extras), 1)
+        self.assertEqual(extras[0]["title"], "My Lecture")
+        self.assertEqual(len(rows), 37)
+        store.close()
+
+    def test_shelf_enter_fetches_then_plays(self):
+        import tempfile
+        from unittest import mock
+        from tilawah import ytpl
+        app = self._app()
+        dd = tempfile.mkdtemp()
+        app.cfg["download_dir"] = dd
+        app.cfg["play_mode"] = "download"
+        app.panel = 2
+        created = {}
+
+        def fake_ingest(url, download_dir, store=None, progress=None,
+                        max_items=40, file_progress=None, stop=None, single=False):
+            from tilawah.db import Store as _S
+            vid = url.rsplit("v=", 1)[-1]
+            fp = os.path.join(dd, "Playlist", f"got-{vid}.webm")
+            os.makedirs(os.path.dirname(fp), exist_ok=True)
+            with open(fp, "wb") as fh:
+                fh.write(b"x" * 2048)
+            title = f"Video {vid}"
+            if store is not None:
+                store.upsert_track(title, url + "#" + title, fp)
+            if file_progress:
+                file_progress(100.0, "done")
+            created[vid] = fp
+            return [{"title": title, "filepath": fp, "url": url}]
+
+        with mock.patch.object(ytpl, "ingest", side_effect=fake_ingest):
+            app._shelf_cache = ytpl.shelf_status(app.store, dd)
+            app.shelf_sel = 0
+            app._enter()
+            self.assertEqual(app.mode, "fetch")
+            for _ in range(100):
+                app._poll_fetch()
+                app._poll_shelf()
+                if app.mode == "browse" and not (app.fetch and app.fetch.get("running")):
+                    break
+                time.sleep(0.2)
+            self.assertTrue(app.player.playing)
+            self.assertTrue(created)
+        app.player.close()
+        app.store.close()
+
 class ArtKuficTest(unittest.TestCase):
     def test_kufic_font(self):
         from tilawah import art

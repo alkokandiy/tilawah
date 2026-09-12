@@ -444,14 +444,20 @@ def cmd_history(args):
 
 
 def cmd_shelf(args):
-    _, store = ctx()
-    tracks = store.get_playlist()
-    if not tracks:
-        print("(empty shelf — run: tilawah get-playlist <YouTube-playlist-URL>)")
-    for i, t in enumerate(tracks, 1):
-        mark = "x" if t["filepath"] else " "
-        print(f"{i:2d}. [{mark}] {t['title']}")
-    return 0
+    cfg, store = ctx()
+    from . import ytpl
+    rows = ytpl.shelf_status(store, cfg.get("download_dir", "~/Tilawah"))
+    if not rows:
+        print("(shelf unavailable - check storage permissions)")
+        return 0
+    saved = 0
+    for i, r in enumerate(rows, 1):
+        mark = "x" if r["present"] else " "
+        if r["present"]:
+            saved += 1
+        extra = "" if r["present"] else "  (Enter in TUI fetches it)"
+        print(f"{i:2d}. [{mark}] {r['title']}{extra}")
+    print(f"— {saved}/{len(rows)} saved")
 
 
 def cmd_resume(args):

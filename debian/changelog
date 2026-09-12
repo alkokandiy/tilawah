@@ -1,3 +1,10 @@
+tilawah (1.7.0-1) unstable; urgency=medium
+
+  * Shelf is a permanent 36-track catalog, Enter fetches+plays,
+    background backfill, local-first identity.
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 10 Sep 2026 00:00:00 +0000
+
 tilawah (1.6.1-1) unstable; urgency=medium
 
   * Tests pass on Windows (stub curses constants, platform-aware paths).

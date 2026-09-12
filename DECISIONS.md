@@ -218,6 +218,17 @@ so the keymap below is mine; everything else follows the brief literally.
     to APPDATA/LOCALAPPDATA on Windows. CI now runs the suite on
     ubuntu + macos + windows. Windows TUI and macOS runs are best-effort and
     untested on real hardware - stated, not implied.
+## Round 12 — shelf that ships (2026-09-10)
+
+40. **Shelf is a catalog, not a folder listing**: hardcoded 36 video ids
+    (stable even when YouTube reorders; 4 already left the playlist yet keep
+    working locally). Status resolves DB key -> title -> NN file -> glob;
+    local files always win. Enter on missing fetches it (overlay), plays on
+    landing, and backfills the rest while you listen.
+41. **Key-format lesson**: DB keys carry `#title`, lookups used bare URLs -
+    nothing ever matched until indexed by the pre-`#` part. Stale same-file
+    keys are now merged on write.
+
 39. **No silent gaps left**: every optional dep either works, warns once with
     the fix (ffmpeg visuals tip), or degrades loudly (dummy backend prints
     NO SOUND). `tilawah doctor` remains the single source of truth.
