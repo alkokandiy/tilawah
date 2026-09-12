@@ -817,7 +817,11 @@ class ControlTest(unittest.TestCase):
         app.store.close()
 
     def test_tui_no_terminal_fails_clean(self):
-        import curses as _real_curses
+        try:
+            import curses as _real_curses
+        except ImportError:  # Windows: broken curses package, use the stub
+            from tilawah import tui as _tui_stub
+            _real_curses = _tui_stub.curses
         import types
         from unittest import mock
         from tilawah import cli
@@ -826,7 +830,8 @@ class ControlTest(unittest.TestCase):
         with mock.patch.object(cli, "get_catalog", return_value=([], False)), \
              mock.patch("tilawah.tui.App"), \
              mock.patch.object(_real_curses, "wrapper",
-                               side_effect=_real_curses.error("nocbreak")):
+                               side_effect=_real_curses.error("nocbreak"),
+                               create=True):
             rc = cli.cmd_tui(args)
         self.assertEqual(rc, 1)
 
