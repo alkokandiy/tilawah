@@ -7,38 +7,60 @@ No daemon, no heavy dependencies: Python 3.10+ standard library does the
 work; `mpv` / `yt-dlp` / `ffmpeg` plug in when present. Saved tracks get a
 real rhythm-reactive pulse visualizer (loudness-scanned per file).
 
-## Install — two lines, any machine
+## Install — pick your OS
 
+### Debian / Ubuntu / Kali / Mint / Pop!_OS (recommended)
+
+Two lines:
 ```bash
-# Debian / Ubuntu / Kali / Mint / Pop!_OS ...
 echo "deb [trusted=yes] https://alkokandiy.github.io/tilawah/ ./" \
   | sudo tee /etc/apt/sources.list.d/tilawah.list
-sudo apt update && sudo apt install tilawah     # pulls mpv, yt-dlp, ffmpeg too
+sudo apt update && sudo apt install tilawah
 ```
 
-One line instead? `curl -sSL https://alkokandiy.github.io/tilawah/install.sh | sh`
+Or one line:
+```bash
+curl -sSL https://alkokandiy.github.io/tilawah/install.sh | sh
+```
 
-Other systems (same app, same features):
-- **Fedora/RHEL**: `sudo dnf install mpv yt-dlp ffmpeg`, then `pip install` this repo
-- **Arch/Manjaro**: `sudo pacman -S mpv yt-dlp ffmpeg`, then `pip install` this repo
-- **macOS**: `brew install mpv yt-dlp ffmpeg`, then `pip install` this repo
-- **Windows**: `pip install windows-curses yt-dlp` (+ mpv/ffmpeg from their sites);
-  library, downloads and shelf work, TUI needs Windows Terminal
-- Missing anything? `tilawah doctor` names it and prints the exact fix.
-
-## More install paths
+### macOS (Homebrew)
 
 ```bash
-# Grab the .deb from GitHub Releases and install it
-sudo apt install ./tilawah_*_all.deb
-
-# From source
-pip install .                                 # gives you the `tilawah` command
+bash <(curl -sSL https://raw.githubusercontent.com/alkokandiy/tilawah/main/scripts/setup-macos.sh)
 ```
 
-`tilawah doctor` checks everything and prints the one-line fix for anything
-missing. The app never crashes on a missing dependency — it degrades loudly
-(e.g. it tells you there is NO SOUND until you install mpv).
+### Fedora / RHEL
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/alkokandiy/tilawah/main/scripts/setup-fedora.sh)
+```
+
+### Arch / Manjaro
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/alkokandiy/tilawah/main/scripts/setup-arch.sh)
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/alkokandiy/tilawah/main/scripts/setup-windows.ps1 | iex
+```
+
+### From source (any OS)
+
+```bash
+pip install git+https://github.com/alkokandiy/tilawah.git
+```
+
+### Manual .deb download
+
+```bash
+bash scripts/download.sh          # downloads to /tmp/
+sudo apt install ./tilawah_*_all.deb
+```
+
+Missing anything? `tilawah doctor` names it and prints the exact fix.
 
 ## Use
 
