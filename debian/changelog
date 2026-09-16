@@ -1,3 +1,10 @@
+tilawah (1.8.7-1) unstable; urgency=medium
+
+  * Shelf fetch survives YouTube bot-checks (android player fallback, retries,
+    actionable errors); Queue panel removed (Now Playing/Reciters/Shelf/About).
+
+ -- Tilawah <tilawah@example.invalid>  Thu, 17 Sep 2026 03:14:08 +0500
+
 tilawah (1.8.6-1) unstable; urgency=medium
 
   * Announced auto-play, Space-during-fetch feedback, truthful source labels.
