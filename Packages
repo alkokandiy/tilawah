@@ -1,0 +1,19 @@
+Package: tilawah
+Version: 1.8.7-1
+Architecture: all
+Maintainer: Tilawah <tilawah@example.invalid>
+Depends: python3 (>= 3.10)
+Recommends: mpv, yt-dlp, ffmpeg
+Suggests: python3-pil
+Filename: ./tilawah_1.8.7-1_all.deb
+Size: 58416
+MD5sum: f4a1d8f9abfd1123ec04e5bee08cb3dc
+SHA1: 06c74bc806be3e4a4ad7f1202865f9e200f211d1
+SHA256: 19c2b00f2c95d5e276310aab0872088aa52a99dc86495b01a394a03b135c713b
+Section: sound
+Priority: optional
+Description: Terminal-native Qur'an audio player
+ Stream and offline-play Qur'an audio from mp3quran.net, keep a personal
+ YouTube shelf, sleep timer and ambient Islamic-geometric visuals -
+ all in one terminal binary, no daemon required.
+

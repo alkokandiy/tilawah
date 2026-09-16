@@ -1,0 +1,24 @@
+Architectures: all
+Codename: tilawah
+Components: ./
+Date: Wed, 16 Sep 2026 22:16:30 +0000
+Description: Tilawah terminal Qur'an player
+Label: Tilawah
+Origin: Tilawah
+Suite: stable
+MD5Sum:
+ 7e102b695b47d20d35a7908331c89656              662 Packages
+ 01aa65b90fb47e869b8458767c4277c7              487 Packages.gz
+ b93cc7f1d9ec46bd7da872e6b01fc7b4              179 Release
+SHA1:
+ 8712140cdbf57afb14c751e09644c5697210e886              662 Packages
+ 10dbf2b09a0fe2f2b82364602ac91ffc346a884e              487 Packages.gz
+ 43040ab962ea409b728f87c7cc8bdae0410c515f              179 Release
+SHA256:
+ e3e319f76780b451874c2af1e8daeece19e03c91ec4423e9b67f1dbfd7ab3fd9              662 Packages
+ 96367c72715f972d4bc48d43cb2e4108c19c66f744bfd17b6a62479aee0d7834              487 Packages.gz
+ b2444a9aebe1d4ede78190a1e1f5d4518a8ebc310c5bd18ba9829d48603fa7b4              179 Release
+SHA512:
+ 0e3b7fdf5856c644d224f9a74d7300d66eb9a714e54c8c98b11a18be7717bfe6b87ffbdcf7cdf7c8adab3da02439b56acc1aac72e44d02b791de7e59a65ca5b3              662 Packages
+ 397a9f0d87f053679f4e1ef377e1a06d839a2494a4f7017683b36ac4a9fa72f034e2fb6c292a97f86fe04d11246ff931dd766892c3a55e8815ec957e0317345f              487 Packages.gz
+ 9e59d5bde9d8311235fae983bb299293e312ee7c873915ec3e8b161dc7305c7b998ff9ee52d306dafb611922d170b592c71766b78529310be89f3e33bd45ef1c              179 Release
