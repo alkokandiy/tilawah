@@ -1,6 +1,6 @@
 """Curses TUI: friendly, keyboard-only, single binary, no daemon.
 
-Panels: Now Playing | Reciters (Top 20) | My Shelf | Queue.
+Panels: Now Playing | Reciters (Top 20) | My Shelf | About.
 Footer always shows the keys that matter here; `?` shows everything.
 
   Space play/pause   n/p next/prev    0 restart        m mute   -/= volume
@@ -46,7 +46,7 @@ KEYMAP_DOC = [
     ("Space", "play / pause"), ("n / p", "next / previous track"),
     ("0", "restart track"), ("m", "mute"), ("- / =", "volume"),
     ("Arrows / hjkl / WASD", "move + seek + volume (see footer)"),
-    ("1-5", "jump to panels (About is 5)"),
+    ("1-4", "jump to panels (About is 4)"),
     ("Tab", "next panel"), ("Enter", "play selected"),
     ("Esc", "back to Now Playing"),
     ("/", "find reciter"), ("C", "Top picks <-> all reciters"),
@@ -63,11 +63,10 @@ KEYMAP_DOC = [
 ]
 
 HINTS = {
-    0: "Space play - n next - L/R seek - U/D vol - 1-5 panels - ? keys",
-    1: "1-5 panels - move: arrows/hjkl/WASD - Enter play - / find - d save 1 - ? keys",
-    2: "Enter play - Y fetch tracks - D save - 1-5 panels - ? keys",
-    3: "Enter jump - z shuffle - e repeat - 1-5 panels - ? keys",
-    4: "j/k scroll - 1-5 panels - ? keys",
+    0: "Space play - n next - L/R seek - U/D vol - 1-4 panels - ? keys",
+    1: "1-4 panels - move: arrows/hjkl/WASD - Enter play - / find - d save 1 - ? keys",
+    2: "Enter play - Y fetch tracks - D save - 1-4 panels - ? keys",
+    3: "j/k scroll - 1-4 panels - ? keys",
 }
 
 
@@ -96,7 +95,7 @@ class App:
             self.anim = "orbit"
         self.show_all = bool(cfg.get("show_all_reciters", False))
         self.panel = 0
-        self.panels = ["Now Playing", "Reciters", "My Shelf", "Queue", "About"]
+        self.panels = ["Now Playing", "Reciters", "My Shelf", "About"]
         self.fullscreen = False
         self.move_mode = False
         self.box = [2, 2]
@@ -104,7 +103,6 @@ class App:
         self.sur_sel = 0
         self.col = 0  # 0 reciters, 1 surahs
         self.shelf_sel = 0
-        self.q_sel = 0
         self.about_sel = 0
         self.moshaf_idx = {}  # reciter name -> moshaf index
         self.filter = ""
@@ -1104,7 +1102,7 @@ class App:
             self.mode = "url"
             self.buf = ""
             return None
-        if ch in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5")):
+        if ch in (ord("1"), ord("2"), ord("3"), ord("4")):
             idx = ch - ord("1")
             if idx < len(self.panels):
                 self.panel = idx
@@ -1159,8 +1157,6 @@ class App:
         elif self.panel == 2:
             self.shelf_sel = max(0, self.shelf_sel + dy)
         elif self.panel == 3:
-            self.q_sel = max(0, self.q_sel + dy)
-        elif self.panel == 4:
             self.about_sel = max(0, self.about_sel + dy)
         return None
 
@@ -1172,8 +1168,6 @@ class App:
                 self.play_fav_hist(self.favs[min(self.sur_sel, len(self.favs) - 1)])
             elif self.list_view == "hist" and self.hist:
                 self.play_fav_hist(self.hist[min(self.sur_sel, len(self.hist) - 1)])
-        elif self.panel == 3 and self.player.queue:
-            self.player.jump(self.q_sel % len(self.player.queue))
         elif self.panel == 2 and getattr(self, "_shelf_cache", None):
             e = self._shelf_cache[min(self.shelf_sel, len(self._shelf_cache) - 1)]
             if e["present"]:
@@ -1311,8 +1305,6 @@ class App:
         elif self.panel == 2:
             self._shelf(stdscr, h, w)
         elif self.panel == 3:
-            self._queue(stdscr, h, w)
-        elif self.panel == 4:
             self._about(stdscr, h, w)
         if self.show_help:
             self._help(stdscr, h, w)
@@ -1481,12 +1473,6 @@ class App:
         self._list(stdscr, h, w,
                    f"My Shelf - {saved}/{len(rows)} saved ({mb:.0f}MB)",
                    labels, self.shelf_sel)
-
-    def _queue(self, stdscr, h, w):
-        rows = self.player.queue_view() or ["Queue is empty - play anything to fill it."]
-        self._list(stdscr, h, w,
-                   f"Up next - repeat {self.player.repeat} - shuffle "
-                   f"{'on' if self.player.shuffle else 'off'}", rows, self.q_sel)
 
     def _about(self, stdscr, h, w):
         from . import about as _about_mod

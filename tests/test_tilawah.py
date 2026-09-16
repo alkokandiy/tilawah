@@ -433,16 +433,13 @@ class ControlTest(unittest.TestCase):
             from tilawah import tui as _t
             curses = _t.curses
         app = self._app()
-        app.panel = 3
-        app.player.set_queue([
-            {"reciter": "R", "moshaf": "M", "surah": n, "url": f"https://x/{n:03d}.mp3",
-             "duration": 60} for n in (1, 2, 3)])
+        app.panel = 2
         app._key(ord("s"))
-        self.assertEqual(app.q_sel, 1)
+        self.assertEqual(app.shelf_sel, 1)
         app._key(ord("w"))
-        self.assertEqual(app.q_sel, 0)
+        self.assertEqual(app.shelf_sel, 0)
         app._key(curses.KEY_DOWN)
-        self.assertEqual(app.q_sel, 1)
+        self.assertEqual(app.shelf_sel, 1)
         app.store.close()
 
     def test_panel_digits_and_esc(self):
@@ -660,12 +657,17 @@ class ControlTest(unittest.TestCase):
             self.skipTest("posix fake-binary harness")
         from tilawah import ytpl
         d = tempfile.mkdtemp()
+        # ingest only registers files really on disk (phantom yt-dlp paths
+        # are skipped), so the fake binary must point at a real file.
+        real = os.path.join(d, "real-track.mp3")
+        with open(real, "wb") as fh:
+            fh.write(b"x" * 2048)
         fake = os.path.join(d, "yt-dlp")
         with open(fake, "wb") as fh:
             fh.write(b"#!/usr/bin/env python3\n")
             fh.write(b"import sys\n")
             fh.write(b"sys.stdout.buffer.write(b'\\xff\\xfe not text at all\\x0a')\n")
-            fh.write(b"sys.stdout.buffer.write(b'Real Title ||| /tmp/real-track.mp3\\x0a')\n")
+            fh.write(("sys.stdout.buffer.write(b'Real Title ||| " + real + "\\x0a')\n").encode())
         os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
         old_path = os.environ.get("PATH", "")
         os.environ["PATH"] = d + os.pathsep + old_path
@@ -687,6 +689,55 @@ class ControlTest(unittest.TestCase):
         self.assertIn("1", one[one.index("--max-downloads") + 1])
         self.assertNotIn("playlist_index", one[one.index("-o") + 1])
         self.assertIn("playlist_index", many[many.index("-o") + 1])
+
+    def test_build_cmd_android_fallback_and_resilience(self):
+        from pathlib import Path
+        from tilawah import ytpl
+        # str dest must not crash (callers pass both str and Path)
+        one = ytpl._build_cmd("https://youtu.be/abc", "/tmp/x", 40, True)
+        self.assertIn("--no-playlist", one)
+        # android client first: bypasses YouTube's web bot-check (2026-09)
+        self.assertIn("--extractor-args", one)
+        ea = one[one.index("--extractor-args") + 1]
+        self.assertIn("android", ea)
+        # one bad video must not kill the shelf
+        self.assertIn("--ignore-errors", one)
+        self.assertIn("--no-abort-on-error", one)
+        self.assertIn("--retries", one)
+
+    def test_explain_failure_actionable(self):
+        from tilawah import ytpl
+        self.assertIn("bot check", ytpl._explain_failure(
+            ["ERROR: [youtube] abc: Sign in to confirm you’re not a bot"]).lower())
+        self.assertIn("429", ytpl._explain_failure(
+            ["WARNING: Unable to download webpage: HTTP Error 429: Too Many Requests"]))
+        self.assertIn("js runtime", ytpl._explain_failure(
+            ["WARNING: No supported JavaScript runtime could be found"]).lower())
+        self.assertIn("private", ytpl._explain_failure(
+            ["ERROR: [youtube] abc: Private video"]).lower())
+
+    def test_ingest_skips_phantom_paths(self):
+        import stat
+        import tempfile
+        from unittest import mock
+        if os.name != "posix":
+            self.skipTest("posix fake-binary harness")
+        from tilawah import ytpl
+        d = tempfile.mkdtemp()
+        fake = os.path.join(d, "yt-dlp")
+        with open(fake, "wb") as fh:
+            fh.write(b"#!/usr/bin/env python3\n")
+            fh.write(b"import sys\n")
+            fh.write(b"sys.stdout.buffer.write(b'Ghost ||| /tmp/does-not-exist-xyz.mp3\\x0a')\n")
+        os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
+        old_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = d + os.pathsep + old_path
+        try:
+            with mock.patch.object(ytpl.deps, "yt_dlp", return_value=(True, None)):
+                with self.assertRaises(ytpl.PlaylistError):
+                    ytpl.ingest("https://youtu.be/abc", d, max_items=1, single=True)
+        finally:
+            os.environ["PATH"] = old_path
 
     def test_url_prompt_mode(self):
         app = self._app()
@@ -825,10 +876,10 @@ class ControlTest(unittest.TestCase):
 
     def test_about_panel_wiring(self):
         app = self._app()
-        self.assertEqual(len(app.panels), 5)
-        self.assertEqual(app.panels[4], "About")
-        app._key(ord("5"))
-        self.assertEqual(app.panel, 4)
+        self.assertEqual(len(app.panels), 4)
+        self.assertEqual(app.panels[3], "About")
+        app._key(ord("4"))
+        self.assertEqual(app.panel, 3)
         app._key(ord("j"))
         self.assertEqual(app.about_sel, 1)
         app.store.close()

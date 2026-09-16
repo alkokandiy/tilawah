@@ -625,6 +625,10 @@ def cmd_doctor(args):
     print(f"tilawah {__version__}")
     for name, (ok, hint) in deps.status().items():
         print(f"  [{'ok' if ok else 'MISSING'}] {name}" + ("" if ok else f" - {hint}"))
+    ver = deps.yt_dlp_version()
+    if ver:
+        print(f"  yt-dlp version: {ver} (keep fresh: `yt-dlp --update` — "
+              f"YouTube blocks old builds with bot checks)")
     ok, msg = deps.audio_check()
     print(f"  [{'ok' if ok else 'FAIL'}] sound: {msg}")
     try:

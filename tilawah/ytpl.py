@@ -165,29 +165,82 @@ def list_entries(playlist_url, timeout=120):
     try:
         proc = subprocess.run(
             ["yt-dlp", "--flat-playlist", "--no-warnings",
+             "--retries", "3", "--retry-sleep", "2",
              "--print", "%(id)s", playlist_url],
             capture_output=True, text=True, errors="replace", timeout=timeout)
     except FileNotFoundError:
         raise PlaylistError(hint)
     if proc.returncode != 0:
-        raise PlaylistError("could not read that playlist - is the URL right?")
+        tail = [l for l in ((proc.stderr or "") + "\n" + (proc.stdout or "")).splitlines()
+                if l.strip()][-6:]
+        raise PlaylistError(_explain_failure(tail))
     return [l.strip() for l in (proc.stdout or "").splitlines() if l.strip()]
 
 
 def _build_cmd(url, dest, max_items, single):
+    # dest may arrive as str or Path — coerce once, callers pass both.
+    dest = Path(str(dest)).expanduser()
     if single:
         outtmpl = str(dest / "%(title).80s.%(ext)s")
         scope = ["--no-playlist"]
     else:
         outtmpl = str(dest / "%(playlist_index)02d - %(title).80s.%(ext)s")
         scope = ["--yes-playlist"]
+    # Robustness notes (verified live 2026-09-17):
+    # - YouTube's default web client now often answers "Sign in to confirm
+    #   you're not a bot" (HTTP 429 + SABR experiment). The android client
+    #   still returns a playable https format (360p mp4 with audio), so we
+    #   request android first and keep web as a merge fallback.
+    # - --ignore-errors/--no-abort-on-error: one deleted/private video must
+    #   not abort the other 35 shelf tracks.
+    # - --retries/--retry-sleep: ride out transient 429s instead of failing.
     return (["yt-dlp"] + scope + ["--newline", "--no-colors",
             "--max-downloads", str(1 if single else max_items),
+            "--extractor-args", "youtube:player_client=android,web",
+            "--ignore-errors", "--no-abort-on-error",
+            "--retries", "5", "--fragment-retries", "5",
+            "--retry-sleep", "2",
             "-f", "bestaudio/best",
             "--no-post-overwrites", "--continue",
             "-o", outtmpl,
             "--print", "after_move:%(title)s ||| %(filepath)s",
             url])
+
+
+def _explain_failure(tail_lines):
+    """Turn yt-dlp's last output lines into an actionable one-liner."""
+    blob = "\n".join(tail_lines)
+    low = blob.lower()
+    if "sign in to confirm you" in low or "not a bot" in low:
+        return ("YouTube asked for a bot check (sign-in). Wait a few minutes, "
+                "then retry one track — and run `yt-dlp --update` / "
+                "`sudo apt install yt-dlp` for the newest bypass. "
+                "Persistent blocks need cookies: see "
+                "`yt-dlp --help | grep -A3 cookies`.")
+    if "http error 429" in low or "too many requests" in low:
+        return ("YouTube rate-limited this IP (HTTP 429). Wait 5-10 minutes, "
+                "then retry — fetch one track at a time, not the whole shelf.")
+    if "no supported javascript runtime" in low:
+        return ("yt-dlp wants a JS runtime for YouTube challenges "
+                "(`sudo apt install deno`, or enable node in /etc/yt-dlp.conf). "
+                "Retrying usually still works via the android client fallback.")
+    if "private video" in low or "video unavailable" in low or "has been removed" in low:
+        return ("That video is private/removed on YouTube — skipping it, "
+                "the rest of the shelf still downloads.")
+    if "requested format is not available" in low or "only images are available" in low:
+        return ("No playable format right now (YouTube SABR experiment). "
+                "Run `yt-dlp --update`, wait a bit, and retry.")
+    if "unsupported url" in low or "is the url right" in low:
+        return ("Could not read that URL — is it public/unlisted and correct?")
+    # Fall back to the last real ERROR/WARNING line, trimmed.
+    for line in reversed(tail_lines):
+        s = line.strip()
+        if s.startswith("ERROR") or s.startswith("WARNING"):
+            return s[:220]
+    for line in reversed(tail_lines):
+        if line.strip():
+            return line.strip()[:220]
+    return "unknown error — run the same URL with `yt-dlp` manually to see why."
 
 
 def ingest(playlist_url, download_dir, store=None, progress=None, max_items=40,
@@ -204,33 +257,54 @@ def ingest(playlist_url, download_dir, store=None, progress=None, max_items=40,
     except FileNotFoundError:
         raise PlaylistError(hint)
     tracks = []
-    for line in proc.stdout or []:
-        if stop is not None and stop.is_set():
-            try:
-                proc.terminate()
-            except Exception:
-                pass
-            break
-        line = line.strip()
-        m = re.match(r"(.+?) \|\|\| (.+)", line)
-        if m:
-            title, path = m.group(1).strip(), m.group(2).strip()
-            tracks.append({"title": title, "filepath": path, "url": playlist_url})
-            if store is not None:
-                store.upsert_track(title, playlist_url + "#" + title, path)
-            if progress:
-                progress(len(tracks), title)
-            continue
-        if file_progress:
-            pct = _dl_pct(line)
-            if pct is not None:
+    tail = []  # last ~15 output lines, for failure diagnosis
+    try:
+        for line in proc.stdout or []:
+            if stop is not None and stop.is_set():
                 try:
-                    file_progress(pct, line[:80])
+                    proc.terminate()
                 except Exception:
                     pass
+                break
+            line = line.strip()
+            tail.append(line)
+            if len(tail) > 15:
+                del tail[:-15]
+            m = re.match(r"(.+?) \|\|\| (.+)", line)
+            if m:
+                title, path = m.group(1).strip(), m.group(2).strip()
+                # Trust-but-verify: only register files really on disk.
+                # (yt-dlp prints the expected path even on some failures.)
+                if not _present(path):
+                    continue
+                tracks.append({"title": title, "filepath": path, "url": playlist_url})
+                if store is not None:
+                    store.upsert_track(title, playlist_url + "#" + title, path)
+                if progress:
+                    progress(len(tracks), title)
+                continue
+            if file_progress:
+                pct = _dl_pct(line)
+                if pct is not None:
+                    try:
+                        file_progress(pct, line[:80])
+                    except Exception:
+                        pass
+    finally:
+        try:
+            if proc.stdout:
+                proc.stdout.close()
+        except Exception:
+            pass
     proc.wait()
+    if stop is not None and stop.is_set():
+        return tracks
     if proc.returncode != 0 and not tracks:
         raise PlaylistError(
-            f"yt-dlp exited with code {proc.returncode} — check the playlist URL "
-            f"(must be public/unlisted) and your connection.")
+            f"yt-dlp exited with code {proc.returncode}: {_explain_failure(tail)}")
+    if not tracks:
+        # returncode 0 but nothing downloaded (e.g. all videos private, or
+        # --ignore-errors skipped everything): say why instead of "0 tracks".
+        raise PlaylistError(_explain_failure(tail) or
+                            "nothing fetched - check the link/playlist URL")
     return tracks

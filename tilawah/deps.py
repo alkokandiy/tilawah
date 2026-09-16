@@ -78,6 +78,28 @@ def pillow():
         return False, "Pillow not found - pip install Pillow"
 
 
+def js_runtime():
+    """JS runtime for YouTube EJS challenges (deno/node/bun/quickjs)."""
+    for exe in ("deno", "node", "bun", "quickjs"):
+        if shutil.which(exe) is not None:
+            return True, exe
+    return False, ("no JS runtime (deno/node/bun/quickjs) - YouTube challenges "
+                   "may lose some formats; " + install_cmd("deno"))
+
+
+def yt_dlp_version(timeout=15):
+    """Installed yt-dlp version string, or '' when missing/unknown."""
+    if shutil.which("yt-dlp") is None:
+        return ""
+    try:
+        import subprocess
+        proc = subprocess.run(["yt-dlp", "--version"], capture_output=True,
+                              text=True, timeout=timeout)
+        return (proc.stdout or "").strip().splitlines()[0][:32] if proc.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
 def windows_curses():
     """Extra check for Windows, where stdlib curses does not exist."""
     if sys.platform != "win32":
@@ -100,6 +122,7 @@ def status():
         "yt-dlp": yt_dlp(),
         "ffmpeg": ffmpeg(),
         "pillow": pillow(),
+        "js-runtime": js_runtime(),
     }
     if sys.platform == "win32":
         out["windows-curses"] = windows_curses()
